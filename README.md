@@ -63,18 +63,30 @@ One row = one detected object, in one frame.
 | `class_id`          | int   | Raw YOLO class ID (COCO indices by default — see `config.py` to remap if you fine-tune on a custom dataset). |
 | `confidence`        | float | YOLO detection confidence, 0.0–1.0.                                       |
 | `x1, y1, x2, y2`    | float | Bounding box corners in pixel space (top-left, bottom-right).             |
+
 | `bottom_center_x/y` | float | Bottom-center point of the box (where tires meet road). **Use this point for ROI/zone-crossing checks** (stop-line, lane polygons) — it's more accurate than the box centroid for tall vehicles like trucks/buses, whose centroid sits noticeably above ground level. |
-| `box_width/height`  | float | Box dimensions in pixels. Keep these — apparent vehicle size shrinks with distance from camera, so this is useful later for scale-based speed/distance estimation. |
 
-## Design decisions worth knowing before you build on top of this
+| `box_width/height`  | float | Box dimensions in pixels. Keep these — apparent vehicle size shrinks with distance from camera, so this is useful later for scale-based speed/   distance estimation.  
 
-**No smoothing or downsampling happens here, on purpose.** This module
-writes raw, per-frame, unsmoothed coordinates. Smoothing (moving average,
-Kalman) and downsampling (e.g. keep every 3rd point) are decisions that
-belong in whatever analysis module consumes this CSV — not here. The
-reasoning: once you throw away or smooth data at collection time, you
-can't get the raw signal back if a later module turns out to need it.
-Keep this layer "dumb and complete," keep intelligence downstream.
+|velocity_x_px_sec,velocity_y_px_sex| float | velcotiy of each id in x and y coordinates directly being derived from bottom_center_x/y coordinates over time .
+|speed_px_sec| float | calculated using velocity_x_px_sec and velocity_y_px_sex .
+
+|heading_deg| float |  (degrees(atan2(vy, vx)) + 360) % 360
+0° = moving right across the screen
+90° = moving downward on screen
+180° = moving left across the screen
+270° = moving upward on screen
+
+|is_stationary| bool |It's a 0 or 1 flag. 1 means this vehicle has been moving slower than STATIONARY_SPEED_THRESHOLD_PX_SEC for at least STATIONARY_MIN_FRAMES consecutive frames , usefull attribute for illegal parking traffic voilation .
+
+|frames_sinze_first_scene| float | how many frames this tracker_id has been continuously visible since it first appeared , using in detecting ghost ,
+Ghost detection — YOLO sometimes hallucinates a bounding box for 2–3 frames then it disappears. That's not a real vehicle, it's a detection artifact. Filter them out before any violation check:
+pythonreal_vehicles = df[df['frames_since_first_seen'] >= 5]
+Triple-riding debounce — your rule is "3 persons on motorcycle for 15 consecutive frames before flagging." You need to confirm the motorcycle itself has been tracked for at least 15 frames, otherwise you could flag a motorcycle that appeared in frame 1 and by frame 3 coincidentally had 3 person boxes near it. The check becomes:
+pythonif overlap_condition and row['frames_since_first_seen'] >= 15:
+    flag_triple_riding(tracker_id)
+
+-----------------------------------------------------------------------------------------------------------------------------------------------
 
 **Timestamps come from frame position, not wall-clock time.** `timestamp_sec`
 is calculated as `frame_index / source_video_fps`, read directly from the
@@ -111,3 +123,33 @@ is a two-line change, not a refactor.
    Apply smoothing/downsampling THERE.
 3. Layer violation logic (red-light ROI check, direction-vector check for
    wrong-side driving, etc.) on top of that trajectory data.
+
+
+Data processing flow 
+'''
+                        [Raw Bounding Box from YOLO]
+ 
+                                    │
+                     
+                                    ▼
+ 
+    [Layer 1: One-Euro Filter] ──► Smooths positions *just* enough to track cleanly
+ 
+                                    │ (Keeps boxes responsive; zero trailing lag)
+                     
+                                    ▼
+ 
+    [Calculate Velocity Math] ──► v = Δx / Δt (Amplifies sub-pixel noise)
+ 
+                                    │
+                     
+                                    ▼
+ 
+    [Layer 2: Velocity Filter] ──► Dedicated low-alpha EMA filter wipes out
+ 
+                                    │ high-frequency derivative spikes directly
+                     
+                                    ▼
+ 
+                        [Final CSV & Stable Vectors]
+'''

@@ -1,20 +1,20 @@
 # Traffic Violation Detection Pipeline — Foundation & Analytical Engine
 This repository contains the core tracking and analytical orchestration framework for the automated traffic violation detection pipeline. The architecture is engineered around a Single Pass, Multi-Stage Pipeline that decouples expensive GPU computing from downstream multi-point geometric rule checking.
-
-                                                        ┌─────────────────────────────────────┐
-                                                        │      Input Raw Traffic Video        │
-                                                        └──────────────────┬──────────────────┘
-                                                                           │
-                                                                           ▼
-                                                        ┌─────────────────────────────────────┐
-                                                        │       main.py (Orchestrator)        │
-                                                        │   - Extracts True Hardware FPS      │
-                                                        │   - Captures Frame Dimensions       │
-                                                        └──────────────────┬──────────────────┘
-                                                                           │
-                                                                           ▼
-                                               ┌───────────────────────────┴───────────────────────────┐
-                                               ▼                                                       ▼
+'''
+                                                          ┌─────────────────────────────────────┐
+                                                          │      Input Raw Traffic Video        │
+                                                          └──────────────────┬──────────────────┘
+                                                                             │
+                                                                             ▼
+                                                          ┌─────────────────────────────────────┐
+                                                          │       main.py (Orchestrator)        │
+                                                          │   - Extracts True Hardware FPS      │
+                                                          │   - Captures Frame Dimensions       │
+                                                          └──────────────────┬──────────────────┘
+                                                                             │
+                                                                             ▼
+                                                 ┌───────────────────────────┴───────────────────────────┐
+                                                 ▼                                                       ▼
                                       ┌─────────────────────────────────┐             ┌─────────────────────────────────┐
                                       │     Step 1: Zone Tracing        │             │   Step 2: trajectory_collector  │
                                       │  - Traces Interactive Polygons  │             │  - In-Memory YOLO & BoT-SORT    │
@@ -43,11 +43,12 @@ This repository contains the core tracking and analytical orchestration framewor
                                                               │  - Lifecycle Quality Grading    │
                                                               │  - Max Box Area Patch Extraction│
                                                               │  - Citation Metadata Sidecars   │
-                                                              └─────────────────────────────────┘
-
+                                                              └─────────────────────────────────┘  
+'''
                         
 Core System Architectural PrinciplesSingle Source of Truth (SSoT) Telemetry Sync: The pipeline removes all hardcoded framing constants (FPS = 30). main.py opens the incoming video container header once at execution runtime, locks down the true hardware frame rate (TRUE_FPS), frame width, and frame height, and propagates these primitives across every sub-module in memory. This eliminates temporal drift and coordinate mapping displacement during downstream processing.In-Memory Optimization: The terminal-spawning subprocess wrapper inside main.py has been completely deleted. All stages—from tracking data ingestion to stationary segment splitting—are executed natively via Python module imports.Simultaneous Dual-Stream Rendering: Instead of passing a finished video through a secondary decoding/encoding cycle to overlay zones, trajectory_collector.py parses your active parking_zones.json structure directly during tracking inference. While the raw pixels go into the YOLO framework to ensure zero model tracking interference, a concurrent background pixel manipulation process paints boundaries, alpha-blended transparent forbidden areas, and direction arrows onto your isolated_trajectory_map_*.mp4 black canvas map in a single pass.Complete Pipeline Data Flow Diagram
 
+'''
                                                               [Raw Bounding Box from YOLO/BoT-SORT]
                                                                               │
                                                                               ▼
@@ -75,6 +76,7 @@ Core System Architectural PrinciplesSingle Source of Truth (SSoT) Telemetry Sync
                                                              │  - Identifies target peak box area      │
                                                              │  - Crops JPG patch & writes sidecar TXT │
                                                              └─────────────────────────────────────────┘
+'''
 
 # CSV Schema
 Every run generates a chronologically structured, tracking lifecycle-grouped matrix sorted sequentially by vehicle_class -> tracker_id -> frame_index.
@@ -82,7 +84,8 @@ Every run generates a chronologically structured, tracking lifecycle-grouped mat
 # Detailed Violation Rule Engine Mechanics
 1. Multi-Point Spatial Consensus Parking Check
 The parking rule engine completely bypasses single-point boundary errors by setting up a 5-Point Consensus Voting Grid mapped proportionally across the vehicle bounding box footprint:
-                                                          
+
+'''
                                                                     x1                         x2
                                                                y1  ┌───────────────────────────┐
                                                                    │     o (Top Inset)         │
@@ -92,11 +95,13 @@ The parking rule engine completely bypasses single-point boundary errors by sett
                                                                    │     o (Bottom Center)     │
                                                                y2  └───────────────────────────┘
 
+'''
 
 The Logic: When a vehicle enters a stationary state inside the tracking array, the engine extracts its tracking metrics and tests all 5 coordinates against the prohibited zone polygon. An automated citation ticket is generated if and only if at least 3 out of the 5 points register completely inside the polygon boundary. This eliminates false positives caused by overlapping shadow boundaries or adjacent lane traffic.
 
 2. Vector Field Alignment (Wrong-Side Driving)Instead of relying on simple directional zone boundaries, the motion checker treats road lane polygons as directional vector fields: 
 
+'''
                                                           Legal Vector Direction (Heading: 90° Downward)
                                                                 ┌──────────────────────────────┐
                                                                 │              │               │
@@ -105,7 +110,8 @@ The Logic: When a vehicle enters a stationary state inside the tracking array, t
                                                                                ▲
                                                                                │
                                                        Offending Vehicle Trajectory Vector (Heading: 270° Upward)
-                              
+
+'''
 The Logic: When tracing out a road_lane structural polygon, the operator explicitly registers a legal direction vector arrow mapping directly across the lane center profile. The engine calculates the base heading angle of this vector. As vehicles traverse this polygon, their stabilized heading_deg values are continually evaluated against the lane's allowed direction angle. If the angular deviation exceeds your calibrated threshold ($\Delta\theta \ge 135^\circ$), the vehicle is instantly flagged for wrong-side driving.
 
 # Intelligent Evidence Harvesting Core
@@ -114,6 +120,7 @@ Your system doesn't crop frames at the exact microsecond a rule condition is cro
 
 # Directory Pipeline Architecture Layout
 
+'''
                                       ├── main.py                     # Global Orchestrator & SSoT Initialization
                                       ├── polygon.py                  # Geometric Zone Configuration & Interactive UI Engine
                                       ├── trajectory_collector.py     # In-Memory Tracking, Telemetry Ingestion & Canvas Blending
@@ -131,6 +138,8 @@ Your system doesn't crop frames at the exact microsecond a rule condition is cro
                                           └── evidence/               # Automated Citations Repository Directory
                                               ├── best_shot_id_*.jpg  # Maximum Area Quality-Graded Image Patch Crops
                                               └── best_shot_id_*.txt  # Complete Citation Metadata Ticket Sidecars
+'''
+
 # Verification Execution Flow
 To execute the complete pipeline, pass the input raw file string down through your configuration flags:
 

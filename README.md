@@ -1,5 +1,5 @@
 ## Traffic Violation Detection Pipeline — Foundation & Analytical Engine
-# This repository contains the core tracking and analytical orchestration framework for the automated traffic violation detection pipeline. The architecture is engineered around a Single Pass, Multi-Stage Pipeline that decouples expensive GPU computing from downstream multi-point geometric rule checking.
+This repository contains the core tracking and analytical orchestration framework for the automated traffic violation detection pipeline. The architecture is engineered around a Single Pass, Multi-Stage Pipeline that decouples expensive GPU computing from downstream multi-point geometric rule checking.
 ```
                                                           ┌─────────────────────────────────────┐
                                                           │      Input Raw Traffic Video        │

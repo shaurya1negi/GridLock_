@@ -8,7 +8,6 @@ import argparse
 import os
 import sys
 import cv2
-import subprocess
 import pandas as pd
 from datetime import datetime
 import numpy as np
@@ -70,6 +69,16 @@ def get_latest_video_file(output_dir, prefix):
     return os.path.join(output_dir, video_files[0])
 
 
+def get_latest_polygon_json(output_dir):
+    """🌟 NEW FEATURE: Locates the absolute newest zone configuration profile to enable skip reuse."""
+    json_files = [f for f in os.listdir(output_dir)
+                  if f.startswith("parking_zones_") and f.endswith(".json")]
+    if not json_files:
+        return None
+    json_files.sort(key=lambda f: os.path.getctime(os.path.join(output_dir, f)), reverse=True)
+    return os.path.join(output_dir, json_files[0])
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Traffic Violation Detection Pipeline - Main Orchestrator",
@@ -101,7 +110,6 @@ def main():
     TOTAL_FRAMES = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     cap.release()
     
-    # Fallback safety validation if video container headers are slightly corrupt
     if TRUE_FPS == 0 or pd.isna(TRUE_FPS): 
         TRUE_FPS = 30.0
         
@@ -119,14 +127,23 @@ def main():
     print("\n[STEP 1/5] Drawing Prohibited Parking Zones...")
     print("-" * 70)
     
+    # Generate a default pathway signature for newly created profiles
     run_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     polygon_json_path = os.path.join(args.output_dir, f"parking_zones_{run_stamp}.json")
     polygons = []
     
-    if args.skip_polygon_drawing and os.path.exists(polygon_json_path):
-        print(f"⏭Using existing polygons: {polygon_json_path}")
+    # 🌟 FIXED REUSE HANDSHAKE SYSTEM:
+    # Look for any pre-built map layout profiles if skip flag is active
+    existing_config = get_latest_polygon_json(args.output_dir)
+    
+    if args.skip_polygon_drawing and existing_config:
+        print(f"⏭  Reusing existing road zone topology profile natively: {existing_config}")
+        polygon_json_path = existing_config
         polygons = polygon.load_polygons(polygon_json_path)
     else:
+        if args.skip_polygon_drawing:
+            print("⚠️ Notice: --skip-polygon-drawing fallback trigger: No pre-existing layout found profile to load.")
+            
         try:
             frame = extract_first_frame(args.video)
             print(f"Extracted first frame: {frame.shape[0]}x{frame.shape[1]} pixels")
@@ -151,7 +168,6 @@ def main():
     print("-" * 70)
     
     try:
- # FIXED: Calling the imported module function natively in-memory!
         trajectory_collector.process_video(
             video_path=args.video, 
             output_dir=args.output_dir, 
@@ -164,11 +180,7 @@ def main():
         print(f"Error during native trajectory collection: {e}")
         sys.exit(1)
         
-    
-    except subprocess.CalledProcessError as e:
-        print(f"Error during trajectory collection: {e}")
-        sys.exit(1)
-    
+
     # =========================================================================
     # STEP 3: NATIVE PARKED VEHICLE EXTRACTION (NO TERMINAL CALL)
     # =========================================================================
@@ -184,7 +196,6 @@ def main():
         print(f"Reading data natively from: {trajectory_csv}")
         df = pd.read_csv(trajectory_csv)
         
-        # Use global ground-truth TRUE_FPS parameter
         FPS = TRUE_FPS
         
         parked_summary_records = []
@@ -250,7 +261,6 @@ def main():
     # Running Engine Check A: Illegal Parking Consensus Check
     if summary_parked_csv:
         try:
-            # FIXED: Pass dynamic TRUE_FPS parameter keyword arg
             parking_citations = violator.detect_parking_violations(summary_parked_csv, polygon_json_path, args.output_dir)
         except Exception as e:
             print(f"Error during parking violation validation: {e}")
@@ -258,7 +268,6 @@ def main():
     # Running Engine Check B: Vector-Field Wrong Side Driving Check
     if trajectory_csv:
         try:
-            # FIXED: Pass dynamic TRUE_FPS parameter keyword arg
             wrong_side_citations = violator.detect_wrong_side_violations(trajectory_csv, polygon_json_path, args.output_dir)
             print("Violation processing completed")
         except Exception as e:
@@ -268,7 +277,6 @@ def main():
     # =========================================================================
     # NEW STEP: EVIDENCE HARVESTING LOOP
     # =========================================================================
-    
     base_name = os.path.splitext(os.path.basename(trajectory_csv))[0]
     
     # Isolate the explicit separate timeline asset strings
@@ -283,7 +291,7 @@ def main():
                 args.video, parking_citations, timeline_parked_path, args.output_dir
             )
         except Exception as e:
-            print(f" Warning: Parking evidence harvest failed: {e}")
+            print(f"⚠️ Warning: Parking evidence harvest failed: {e}")
 
     # Process Wrong-Side Driving Evidence
     if wrong_side_citations and os.path.exists(wrong_side_citations):
@@ -293,8 +301,11 @@ def main():
                 args.video, wrong_side_citations, timeline_wrong_side_path, args.output_dir
             )
         except Exception as e:
-            print(f" Warning: Wrong-side evidence harvest failed: {e}")
+            print(f"⚠️ Warning: Wrong-side evidence harvest failed: {e}")
 
+    print("\n" + "="*70)
+    print("✅ PIPELINE COMPLETE!")
+    print("="*70)
 
 
 if __name__ == "__main__":

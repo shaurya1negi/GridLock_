@@ -112,7 +112,7 @@ def detect_parking_violations(summary_csv_path, polygon_json_path, output_dir ):
     return output_csv_path
 
 
-def detect_wrong_side_violations(trajectory_csv_path, zone_json_path, output_dir, angle_tolerance_deg=135.0, violation_ratio_threshold=0.50):
+def detect_wrong_side_violations(trajectory_csv_path, zone_json_path, output_dir, angle_tolerance_deg=135.0, violation_ratio_threshold=0.30):
     """
     ===========================================================================
     TRAJECTORY PROPORTIONAL VOTING ENGINE (PURE IMAGE-SPACE GEOMETRY)

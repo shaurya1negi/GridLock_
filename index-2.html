@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Traffic Violation Dashboard</title>
+<style>
+:root {
+  --navy-900:#0B1F3A; --navy-800:#102a4c; --blue-600:#1E5FA8; --blue-500:#2B7BD4;
+  --blue-100:#E6F1FB; --blue-50:#F2F8FD; --ink:#0E1B2A; --slate:#5A6B7E; --mist:#8A99AB;
+  --line:#E2E9F1; --surface:#FFFFFF; --canvas:#F5F8FC;
+  --amber:#E08A1E; --amber-bg:#FBF0DC; --green:#1D9E75; --green-bg:#E1F5EE;
+  --red:#C8442E; --red-bg:#FBE9E5;
+  --mono:ui-monospace,"SF Mono","Roboto Mono",Menlo,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --r:10px; --shadow:0 1px 2px rgba(11,31,58,.04),0 4px 16px rgba(11,31,58,.06);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:var(--sans);background:var(--canvas);color:var(--ink);-webkit-font-smoothing:antialiased;display:grid;grid-template-columns:248px 1fr;min-height:100vh}
+
+.sidebar{background:var(--navy-900);color:#cdd9e8;display:flex;flex-direction:column;padding:22px 16px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:11px;padding:4px 8px 22px}
+.brand .mark{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--blue-500),var(--blue-600));display:grid;place-items:center;flex:none;box-shadow:0 0 0 1px rgba(255,255,255,.08) inset}
+.brand .mark svg{width:19px;height:19px}
+.brand h1{font-size:16px;font-weight:600;color:#fff;letter-spacing:-.01em;line-height:1.1}
+.brand .tag{font-size:11px;color:#6f87a6;letter-spacing:.04em;text-transform:uppercase}
+.nav{display:flex;flex-direction:column;gap:2px;margin-top:4px}
+.nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:8px;color:#aab9cc;text-decoration:none;font-size:14px;font-weight:450;transition:background .14s,color .14s}
+.nav a svg{width:17px;height:17px;flex:none;opacity:.85}
+.nav a:hover{background:rgba(255,255,255,.05);color:#e6eef8}
+.nav a.active{background:var(--blue-600);color:#fff}
+.sidebar .foot{margin-top:auto;font-size:11.5px;color:#5f7794;line-height:1.6;padding:12px 10px 0;border-top:1px solid rgba(255,255,255,.07)}
+.dot-live{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px;box-shadow:0 0 0 3px rgba(29,158,117,.2)}
+
+.main{min-width:0;display:flex;flex-direction:column}
+.topbar{height:60px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:10}
+.topbar .crumb{font-size:13px;color:var(--mist)}
+.topbar .crumb b{color:var(--ink);font-weight:600}
+.run-pill{font-size:12.5px;font-family:var(--mono);color:var(--slate);background:var(--blue-50);border:1px solid var(--line);padding:6px 12px;border-radius:20px;display:flex;align-items:center;gap:8px}
+.run-pill select{border:none;background:transparent;font:inherit;color:var(--blue-600);cursor:pointer;outline:none}
+.content{padding:28px;max-width:1180px;width:100%}
+.page{display:none}.page.show{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.page-head{margin-bottom:22px}
+.page-head h2{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.page-head p{color:var(--slate);font-size:14px;margin-top:4px}
+
+.grid{display:grid;gap:16px}
+.cols-4{grid-template-columns:repeat(4,1fr)}.cols-3{grid-template-columns:repeat(3,1fr)}.cols-2{grid-template-columns:1.6fr 1fr}
+@media(max-width:1000px){.cols-4{grid-template-columns:repeat(2,1fr)}.cols-2,.cols-3{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:18px;box-shadow:var(--shadow)}
+.card h3{font-size:13px;font-weight:600;color:var(--slate);text-transform:uppercase;letter-spacing:.04em;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.card h3 svg{width:15px;height:15px;color:var(--blue-500)}
+.stat .label{font-size:12.5px;color:var(--mist);text-transform:uppercase;letter-spacing:.04em}
+.stat .value{font-size:30px;font-weight:650;letter-spacing:-.02em;margin-top:6px;font-variant-numeric:tabular-nums}
+.stat .value small{font-size:14px;color:var(--mist);font-weight:500}
+.stat .sub{font-size:12.5px;color:var(--slate);margin-top:6px}
+.stat .ic{float:right;width:38px;height:38px;border-radius:9px;background:var(--blue-50);display:grid;place-items:center}
+.stat .ic svg{width:19px;height:19px;color:var(--blue-600)}
+.stat.alert .ic{background:var(--amber-bg)}.stat.alert .ic svg{color:var(--amber)}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mist);font-weight:600;padding:0 14px 11px;border-bottom:1px solid var(--line)}
+td{padding:13px 14px;border-bottom:1px solid var(--blue-50);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--blue-50)}
+.mono{font-family:var(--mono);font-size:12.5px}
+.id-chip{font-family:var(--mono);font-size:12px;background:var(--navy-900);color:#bcd2ee;padding:3px 8px;border-radius:5px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:16px}
+.badge.parking{background:var(--amber-bg);color:#8a5410}
+.badge.wrong{background:var(--red-bg);color:#8f2a19}
+.badge.cls{background:var(--blue-50);color:var(--blue-600)}
+.conf-bar{height:6px;background:var(--line);border-radius:4px;width:70px;overflow:hidden;display:inline-block;vertical-align:middle}
+.conf-bar>i{display:block;height:100%;background:var(--blue-500)}
+
+.drop{border:2px dashed var(--sky-line,#85B7EB);border-radius:14px;background:var(--blue-50);padding:46px 20px;text-align:center;cursor:pointer;transition:background .15s,border-color .15s}
+.drop:hover,.drop.over{background:#E9F3FD;border-color:var(--blue-500)}
+.drop .big{width:54px;height:54px;border-radius:13px;background:#fff;box-shadow:var(--shadow);display:grid;place-items:center;margin:0 auto 14px}
+.drop .big svg{width:26px;height:26px;color:var(--blue-600)}
+.drop h4{font-size:16px;font-weight:600}
+.drop p{color:var(--slate);font-size:13px;margin-top:5px}
+.btn{font:inherit;font-weight:600;font-size:14px;border:none;cursor:pointer;padding:11px 20px;border-radius:9px;background:var(--blue-600);color:#fff;transition:background .14s}
+.btn:hover{background:var(--blue-500)}.btn:disabled{background:var(--mist);cursor:default}
+.btn.ghost{background:#fff;color:var(--blue-600);border:1px solid var(--line)}
+.btn.sm{padding:8px 14px;font-size:13px}
+
+.pipe-steps{display:flex;gap:0;margin-top:8px}
+.pstep{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;position:relative}
+.pstep:not(:last-child)::after{content:"";position:absolute;top:17px;left:50%;width:100%;height:2px;background:var(--line);z-index:0}
+.pstep .ring{width:36px;height:36px;border-radius:50%;background:#fff;border:2px solid var(--line);display:grid;place-items:center;z-index:1;color:var(--mist);transition:all .2s}
+.pstep .ring svg{width:16px;height:16px}
+.pstep.active .ring{border-color:var(--blue-500);color:var(--blue-600);box-shadow:0 0 0 4px var(--blue-50)}
+.pstep.done .ring{background:var(--green);border-color:var(--green);color:#fff}
+.pstep .lbl{font-size:11px;color:var(--slate);font-weight:500;text-align:center}
+.pstep.active .lbl,.pstep.done .lbl{color:var(--ink)}
+
+.video-wrap{background:var(--navy-900);border-radius:var(--r);overflow:hidden;aspect-ratio:16/9;display:grid;place-items:center}
+.video-wrap video{width:100%;height:100%;object-fit:contain}
+.video-wrap .placeholder{color:#5f7794;font-size:13px;text-align:center}
+.video-wrap .placeholder svg{width:30px;height:30px;margin-bottom:8px;opacity:.6}
+.empty{text-align:center;padding:48px 20px;color:var(--mist)}
+.empty svg{width:38px;height:38px;opacity:.4;margin-bottom:10px}
+.empty p{font-size:14px}
+.note{font-size:12.5px;color:var(--slate);background:var(--blue-50);border-left:3px solid #85B7EB;padding:10px 14px;border-radius:0 8px 8px 0;margin-top:14px}
+.note.amber{background:var(--amber-bg);border-left-color:var(--amber);color:#7a4d10}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--slate);margin-top:14px}
+.legend span{display:flex;align-items:center;gap:7px}
+.legend i{width:11px;height:11px;border-radius:3px}
+.bars{display:flex;align-items:flex-end;gap:4px;height:150px;padding-top:8px}
+.bars .bar{flex:1;background:linear-gradient(var(--blue-500),#85B7EB);border-radius:3px 3px 0 0;min-height:3px;transition:height .4s}
+.bars .bar:hover{background:var(--blue-600)}
+.donut-wrap{display:flex;align-items:center;gap:22px}
+.donut{width:132px;height:132px;flex:none}
+.donut-legend{display:flex;flex-direction:column;gap:9px;font-size:13px;flex:1}
+.donut-legend .row{display:flex;align-items:center;gap:9px}
+.donut-legend .row i{width:11px;height:11px;border-radius:3px;flex:none}
+.donut-legend .row b{margin-left:auto;font-variant-numeric:tabular-nums}
+.spinner{width:16px;height:16px;border:2px solid var(--blue-100);border-top-color:var(--blue-500);border-radius:50%;animation:spin .7s linear infinite;display:inline-block;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* zone drawer */
+.mode-btn{font:inherit;font-size:13px;font-weight:600;padding:9px 14px;border-radius:8px;border:1px solid var(--line);background:#fff;color:var(--slate);cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:.14s}
+.mode-btn i{width:12px;height:12px;border-radius:3px;flex:none}
+.mode-btn.active[data-mode="parking"]{border-color:var(--red);background:var(--red-bg);color:#8f2a19}
+.mode-btn.active[data-mode="road"]{border-color:var(--amber);background:var(--amber-bg);color:#8a5410}
+.hint{font-size:12.5px;color:var(--blue-600);background:var(--blue-50);border-radius:8px;padding:9px 13px;margin-top:10px;font-weight:500}
+.evidence-card{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:#fff}
+.evidence-card img{width:100%;display:block;background:var(--navy-900)}
+.cite-head{padding:12px 14px 0}
+.cite-body{padding:10px 14px 14px}
+.cite-row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--blue-50);font-size:13px}
+.cite-row:last-child{border-bottom:none}
+.cite-k{color:var(--mist);font-weight:500}
+.cite-v{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums;text-align:right}
+
+</style>
+</head>
+<body data-active="dashboard">
+
+<aside class="sidebar">
+  <div class="brand">
+    <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M9 3v18"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div>
+    <div><h1>Sentinel</h1><div class="tag">Traffic intelligence</div></div>
+  </div>
+  <nav class="nav">
+    <a data-page="dashboard" href="/dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Overview</a>
+    <a data-page="upload" href="/upload"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>Process video</a>
+    <a data-page="violations" href="/violations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>Violations</a>
+    <a data-page="evidence" href="/evidence"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21" stroke-linecap="round" stroke-linejoin="round"/></svg>Evidence</a>
+    <a data-page="analytics" href="/analytics"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 4-6" stroke-linecap="round" stroke-linejoin="round"/></svg>Analytics</a>
+  </nav>
+  <div class="foot"><div><span class="dot-live"></span>Pipeline online</div><div style="margin-top:4px">YOLO11m · BoT-SORT</div></div>
+</aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="crumb">Sentinel / <b id="crumb">Overview</b></div>
+    <div class="run-pill"><span class="dot-live"></span><span>Run</span><select id="runSelect"><option>no runs yet</option></select></div>
+  </header>
+  <div class="content">
+
+    <!-- OVERVIEW -->
+    <section class="page" id="page-dashboard">
+      <div class="page-head"><h2>System overview</h2><p>One processing pass produces every downstream signal. Cards read from the real pipeline output.</p></div>
+      <div class="grid cols-4" id="statCards"></div>
+      <div class="grid cols-2" style="margin-top:16px">
+        <div class="card"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 4-6" stroke-linecap="round" stroke-linejoin="round"/></svg>Traffic density over time</h3><div class="bars" id="ovDensity"></div><div class="legend"><span><i style="background:var(--blue-500)"></i>Concurrent tracked vehicles per second</span></div></div>
+        <div class="card"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>Vehicle mix</h3><div class="donut-wrap"><svg class="donut" id="ovDonut" viewBox="0 0 42 42"></svg><div class="donut-legend" id="ovDonutLegend"></div></div></div>
+      </div>
+      <div class="card" style="margin-top:16px"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Pipeline stages</h3><div id="archDiagram"></div></div>
+    </section>
+
+    <!-- UPLOAD -->
+    <section class="page" id="page-upload">
+      <div class="page-head"><h2>Process a traffic video</h2><p>Upload footage, draw parking zones and road lanes with flow arrows, then run the full violation pipeline.</p></div>
+      <div class="grid cols-2">
+        <div class="card">
+          <input type="file" id="fileInput" accept="video/*" hidden>
+          <div class="drop" id="drop"><div class="big"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></div><h4 id="dropTitle">Drop a video here, or click to browse</h4><p id="dropSub">MP4 · runs YOLO11m + BoT-SORT + violation engines</p></div>
+          <div style="display:flex;gap:10px;margin-top:16px"><button class="btn" id="runBtn" disabled>Run pipeline</button><button class="btn ghost" id="demoBtn">Load demo run</button></div>
+          <div class="note amber">GPU note — detection is compute-heavy. On CPU, use a short, lower-resolution clip. The page polls for completion automatically.</div>
+        </div>
+        <div class="card">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>Pipeline status</h3>
+          <div class="pipe-steps" id="pipeSteps">
+            <div class="pstep" data-s="0"><div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></div><div class="lbl">Upload</div></div>
+            <div class="pstep" data-s="1"><div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="lbl">Zones</div></div>
+            <div class="pstep" data-s="2"><div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 9l4 3-4 3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="lbl">Detect</div></div>
+            <div class="pstep" data-s="3"><div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div><div class="lbl">Violations</div></div>
+            <div class="pstep" data-s="4"><div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="lbl">Evidence</div></div>
+          </div>
+          <div id="statusMsg" style="margin-top:18px;font-size:13.5px;color:var(--slate)">Waiting for a video.</div>
+        </div>
+      </div>
+
+      <!-- ZONE DRAWER -->
+      <div class="card" id="zoneCard" style="margin-top:16px;display:none">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Set up zones</h3>
+        <p style="font-size:13px;color:var(--slate);margin:-6px 0 14px">The camera is static, so zones drawn on this frame hold for the whole clip. Choose a mode, click points to outline an area, then close it. Road lanes also need a flow-direction arrow.</p>
+        <div style="display:flex;gap:18px;flex-wrap:wrap">
+          <div style="flex:2;min-width:340px">
+            <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+              <button class="mode-btn" data-mode="parking"><i style="background:var(--red)"></i>Parking zone</button>
+              <button class="mode-btn" data-mode="road"><i style="background:var(--amber)"></i>Road lane + arrow</button>
+              <button class="btn ghost sm" id="closeShapeBtn">Close shape</button>
+              <button class="btn ghost sm" id="undoBtn">Undo</button>
+            </div>
+            <div id="canvasWrap" style="position:relative;border-radius:10px;overflow:hidden;background:var(--navy-900);line-height:0">
+              <img id="frameImg" style="width:100%;display:block" alt="frame">
+              <canvas id="zoneCanvas" style="position:absolute;inset:0;width:100%;height:100%;cursor:crosshair"></canvas>
+            </div>
+            <div class="hint" id="drawHint">Pick a mode above to start drawing.</div>
+          </div>
+          <div style="flex:1;min-width:200px">
+            <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mist);font-weight:600;margin-bottom:10px">Configured zones</div>
+            <div id="zoneList"><div style="font-size:13px;color:var(--mist)">No zones yet. Drawing is optional — skip to process the whole frame.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:16px">
+        <div class="card"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3z" stroke-linejoin="round"/></svg>Annotated output</h3><div class="video-wrap" id="annoWrap"><div class="placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3z"/></svg><div>Boxes + IDs render here after processing</div></div></div></div>
+        <div class="card"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="19" r="2"/><path d="M5 17c4-9 9-12 16-13" stroke-linecap="round"/></svg>Trajectory map</h3><div class="video-wrap" id="trajWrap"><div class="placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="19" r="2"/><path d="M5 17c4-9 9-12 16-13"/></svg><div>Isolated motion-vector view</div></div></div></div>
+      </div>
+    </section>
+
+    <!-- VIOLATIONS -->
+    <section class="page" id="page-violations">
+      <div class="page-head"><h2>Detected violations</h2><p>Illegal parking (5-point consensus) and wrong-side driving (vector alignment) from the real engines.</p></div>
+      <div class="grid cols-2" id="violStats" style="margin-bottom:16px"></div>
+      <div class="card"><h3 style="justify-content:space-between"><span style="display:flex;align-items:center;gap:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>Violation log</span><button class="btn ghost sm" id="dlCsvBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;margin-right:6px;vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Download CSV</button></h3><div id="violTable"></div></div>
+    </section>
+
+    <!-- EVIDENCE -->
+    <section class="page" id="page-evidence">
+      <div class="page-head"><h2>Evidence patches</h2><p>The harvester picks the sharpest, largest frame per violator and writes a citation sidecar.</p></div>
+      <div class="grid cols-3" id="evidenceGrid"></div>
+    </section>
+
+    <!-- ANALYTICS -->
+    <section class="page" id="page-analytics">
+      <div class="page-head"><h2>Analytics &amp; reporting</h2><p>Aggregate trends over the trajectory records.</p></div>
+      <div class="grid cols-3" id="anStats" style="margin-bottom:16px"></div>
+      <div class="grid cols-2">
+        <div class="card"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 4-6" stroke-linecap="round" stroke-linejoin="round"/></svg>Traffic density timeline</h3><div class="bars" id="anDensity"></div></div>
+        <div class="card"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke-linejoin="round"/></svg>Violations by type</h3><div id="anViolMix"></div></div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script>
+const __DEMO__ = {
+  summary:{unique_vehicles:59,total_detections:14211,frames:1192,class_breakdown:{car:50,motorcycle:1,truck:8},n_parking:1,n_wrong_side:57},
+  violations:[
+    {tracker_id:6,type:"Illegal parking",vehicle_class:"car",timestamp_sec:1.48,detail:"zone #1 \u00b7 4/5 pts \u00b7 9.16s",confidence:0.8},
+    {tracker_id:101,type:"Wrong-side driving",vehicle_class:"truck",timestamp_sec:47.12,detail:"lane #2 \u00b7 172.0\u00b0 vs legal 0.0\u00b0",confidence:0.96},
+    {tracker_id:103,type:"Wrong-side driving",vehicle_class:"car",timestamp_sec:43.52,detail:"lane #2 \u00b7 168.4\u00b0 vs legal 0.0\u00b0",confidence:0.94},
+    {tracker_id:104,type:"Wrong-side driving",vehicle_class:"car",timestamp_sec:47.16,detail:"lane #2 \u00b7 175.2\u00b0 vs legal 0.0\u00b0",confidence:0.97},
+    {tracker_id:110,type:"Wrong-side driving",vehicle_class:"truck",timestamp_sec:47.44,detail:"lane #2 \u00b7 178.0\u00b0 vs legal 0.0\u00b0",confidence:0.99}
+  ],
+  analytics:{density_over_time:[3,4,5,7,8,9,11,12,10,9,8,9,11,13,12,10,8,6,7,9,10,12,11,9,8,6,5,4,6,7].map((c,i)=>({t:i,count:c})),avg_speed_px_sec:104.4,peak_concurrent:22},
+  evidence:[
+    {image:"",filename:"best_shot_id_101_truck.jpg",citation:"VIOLATION TYPE  : WRONG-SIDE DRIVING\nTRACKER ID      : 101\nVEHICLE CLASS   : TRUCK\nEVIDENCE FRAME  : 1178\nEVIDENCE TIME   : 47.12 seconds from video start\nRESOLUTION AREA : 84231 pixels\nVECTOR MOTION METRICS:\n  \u2022 Vehicle Direction: 188.0\u00b0\n  \u2022 Allowed Direction: 0.0\u00b0\n  \u2022 Deviation Angle  : 172.0\u00b0 against legal lane flow\n  \u2022 Target Zone ID   : Road Lane #2"}
+  ]
+};
+window.fetch = function(url){url=String(url);const J=o=>Promise.resolve({ok:true,json:()=>Promise.resolve(o)});
+  if(url.endsWith('/summary'))return J(__DEMO__.summary);
+  if(url.endsWith('/violations'))return J(__DEMO__.violations);
+  if(url.endsWith('/analytics'))return J(__DEMO__.analytics);
+  if(url.endsWith('/evidence'))return J(__DEMO__.evidence);
+  if(url.endsWith('/api/runs'))return J([]);
+  if(url.endsWith('/api/demo'))return J(__DEMO__);
+  if(url.includes('/api/upload'))return J({run_id:"demo",image:"",width:1280,height:720});
+  if(url.includes('/process'))return J({run_id:"demo",status:"queued"});
+  return J({});};
+</script>
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const fmt = n => Number(n).toLocaleString();
+const CRUMBS = { dashboard: "Overview", upload: "Process video", violations: "Violations", evidence: "Evidence", analytics: "Analytics" };
+const VCOLORS = { car: "#2B7BD4", motorcycle: "#1D9E75", bus: "#E08A1E", truck: "#7A5BD0", bicycle: "#C8442E", person: "#8A99AB" };
+
+let STATE = { runId: null, data: null };
+
+function showPage(p) {
+  $$(".page").forEach(x => x.classList.remove("show"));
+  $("#page-" + p)?.classList.add("show");
+  $$(".nav a").forEach(a => a.classList.toggle("active", a.dataset.page === p));
+  $("#crumb").textContent = CRUMBS[p] || "Overview";
+  try { if (location.protocol !== "file:") history.replaceState({}, "", "/" + p); } catch (e) {}
+  render(p);
+}
+$$(".nav a").forEach(a => a.addEventListener("click", e => { e.preventDefault(); showPage(a.dataset.page); }));
+const currentPage = () => $$(".page.show")[0]?.id.replace("page-", "") || document.body.dataset.active || "dashboard";
+
+async function loadRuns() {
+  try {
+    const runs = await fetch("/api/runs").then(r => r.json());
+    const done = runs.filter(r => r.status === "done");
+    const sel = $("#runSelect");
+    if (done.length) {
+      sel.innerHTML = done.map(r => `<option value="${r.run_id}">${r.video} · ${r.run_id.slice(0, 15)}</option>`).join("");
+      sel.onchange = () => selectRun(sel.value);
+      if (!STATE.runId || STATE.runId === "demo") await selectRun(done[0].run_id);
+    }
+    return runs;
+  } catch { return []; }
+}
+async function selectRun(id) {
+  if (!id || id === "undefined") return;
+  STATE.runId = id;
+  const [summary, violations, analytics, evidence] = await Promise.all([
+    fetch(`/api/runs/${id}/summary`).then(r => r.json()),
+    fetch(`/api/runs/${id}/violations`).then(r => r.json()),
+    fetch(`/api/runs/${id}/analytics`).then(r => r.json()),
+    fetch(`/api/runs/${id}/evidence`).then(r => r.json()),
+  ]);
+  STATE.data = { summary, violations, analytics, evidence };
+  // re-render whatever page is showing, with the real run's data
+  render(currentPage());
+}
+async function loadDemo() {
+  const d = await fetch("/api/demo").then(r => r.json());
+  STATE.runId = "demo"; STATE.data = d;
+  $("#runSelect").innerHTML = `<option>demo run · sample data</option>`;
+  render(currentPage());
+}
+
+function render(p) {
+  if (!STATE.data) return;
+  const { summary, violations, analytics, evidence } = STATE.data;
+  if (p === "dashboard") renderDashboard(summary, violations, analytics);
+  if (p === "violations") renderViolations(violations);
+  if (p === "evidence") renderEvidence(evidence);
+  if (p === "analytics") renderAnalytics(analytics, violations);
+}
+
+const IC = {
+  obj: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="8" rx="2"/><path d="M5 11l2-5h10l2 5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  det: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2" stroke-linecap="round"/></svg>`,
+  alert: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>`,
+  speed: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 14l4-4M5 19a9 9 0 1 1 14 0" stroke-linecap="round"/></svg>`,
+};
+function statCard({ label, value, unit, sub, icon, alert }) {
+  return `<div class="card stat ${alert ? 'alert' : ''}"><div class="ic">${icon}</div><div class="label">${label}</div><div class="value">${value}${unit ? ` <small>${unit}</small>` : ""}</div>${sub ? `<div class="sub">${sub}</div>` : ""}</div>`;
+}
+
+function renderDashboard(s, v, a) {
+  $("#statCards").innerHTML = [
+    statCard({ label: "Unique vehicles", value: fmt(s.unique_vehicles || 0), sub: "real tracks (ghosts filtered)", icon: IC.obj }),
+    statCard({ label: "Total detections", value: fmt(s.total_detections || 0), sub: `over ${fmt(s.frames || 0)} frames`, icon: IC.det }),
+    statCard({ label: "Violations", value: (s.n_parking || 0) + (s.n_wrong_side || 0), sub: `${s.n_parking || 0} parking · ${s.n_wrong_side || 0} wrong-side`, icon: IC.alert, alert: true }),
+    statCard({ label: "Avg speed", value: a.avg_speed_px_sec || 0, unit: "px/s", sub: "moving vehicles", icon: IC.speed }),
+  ].join("");
+  drawBars("#ovDensity", (a.density_over_time || []).map(d => d.count));
+  drawDonut(s.class_breakdown || {});
+  drawArch();
+}
+function drawBars(sel, vals) {
+  const max = Math.max(...vals, 1);
+  $(sel).innerHTML = vals.map(v => `<div class="bar" style="height:${Math.max(3, v / max * 100)}%" title="${v}"></div>`).join("");
+}
+function drawDonut(bd) {
+  const e = Object.entries(bd), total = e.reduce((s, [, v]) => s + v, 0) || 1;
+  let acc = 0;
+  const segs = e.map(([k, v]) => { const len = v / total * 100; const s = `<circle cx="21" cy="21" r="15.915" fill="transparent" stroke="${VCOLORS[k] || '#8A99AB'}" stroke-width="6" stroke-dasharray="${len} ${100 - len}" stroke-dashoffset="${25 - acc}"/>`; acc += len; return s; }).join("");
+  $("#ovDonut").innerHTML = `<circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#EEF3F9" stroke-width="6"/>${segs}<text x="21" y="20" text-anchor="middle" font-size="7" font-weight="700" fill="#0E1B2A">${total}</text><text x="21" y="27" text-anchor="middle" font-size="3.4" fill="#8A99AB">VEHICLES</text>`;
+  $("#ovDonutLegend").innerHTML = e.map(([k, v]) => `<div class="row"><i style="background:${VCOLORS[k] || '#8A99AB'}"></i>${k}<b>${v}</b></div>`).join("") || `<div style="color:var(--mist);font-size:13px">No data</div>`;
+}
+function drawArch() {
+  const box = (x, w, t, s, fill, stroke, ink) => `<rect x="${x}" y="40" width="${w}" height="56" rx="8" fill="${fill}" stroke="${stroke}"/><text x="${x + w / 2}" y="64" text-anchor="middle" font-size="12" font-weight="600" fill="${ink}">${t}</text><text x="${x + w / 2}" y="81" text-anchor="middle" font-size="10" fill="${ink}" opacity=".75">${s}</text>`;
+  const arr = x => `<line x1="${x}" y1="68" x2="${x + 24}" y2="68" stroke="#9DBEE8" stroke-width="1.6"/>`;
+  $("#archDiagram").innerHTML = `<svg viewBox="0 0 920 130" style="width:100%;height:auto;margin-top:4px">
+    ${box(10, 120, "Detect + track", "YOLO11m · BoT-SORT", "#E6F1FB", "#85B7EB", "#042C53")}${arr(130)}
+    ${box(160, 110, "Trajectory CSV", "data contract", "#E1F5EE", "#5DCAA5", "#04342C")}${arr(270)}
+    ${box(300, 120, "Parked extract", "stop segments", "#E6F1FB", "#85B7EB", "#042C53")}${arr(424)}
+    ${box(450, 130, "Violation engines", "parking · wrong-side", "#EEEDFE", "#AFA9EC", "#26215C")}${arr(584)}
+    ${box(610, 120, "Evidence", "best-shot patches", "#FBEAF0", "#ED93B1", "#4B1528")}
+  </svg>`;
+}
+
+const VBADGE = { "Illegal parking": "parking", "Wrong-side driving": "wrong" };
+function renderViolations(v) {
+  const np = v.filter(x => x.type === "Illegal parking").length, nw = v.filter(x => x.type === "Wrong-side driving").length;
+  $("#violStats").innerHTML = [
+    statCard({ label: "Illegal parking", value: np, sub: "5-point consensus", icon: IC.alert, alert: np > 0 }),
+    statCard({ label: "Wrong-side driving", value: nw, sub: "vector alignment", icon: IC.alert, alert: nw > 0 }),
+  ].join("");
+  if (!v.length) { $("#violTable").innerHTML = emptyState("No violations in this run."); const b=$("#dlCsvBtn"); if(b) b.style.display="none"; return; }
+  const b = $("#dlCsvBtn");
+  if (b) { b.style.display = ""; b.onclick = () => downloadViolationsCsv(v); }
+  $("#violTable").innerHTML = `<table><thead><tr><th>Track</th><th>Type</th><th>Vehicle</th><th>Time</th><th>Confidence</th><th>Detail</th></tr></thead><tbody>${v.map(x => `<tr>
+    <td><span class="id-chip">#${x.tracker_id}</span></td>
+    <td><span class="badge ${VBADGE[x.type] || 'parking'}">${x.type}</span></td>
+    <td><span class="badge cls">${x.vehicle_class}</span></td>
+    <td class="mono">${Number(x.timestamp_sec).toFixed(1)}s</td>
+    <td><span class="conf-bar"><i style="width:${Math.round(x.confidence * 100)}%"></i></span> <span class="mono">${Number(x.confidence).toFixed(2)}</span></td>
+    <td style="color:var(--slate);font-size:12.5px">${x.detail}</td></tr>`).join("")}</tbody></table>`;
+}
+
+// Build a CSV from the currently displayed violations and trigger a download.
+function downloadViolationsCsv(rows) {
+  const cols = ["tracker_id", "type", "vehicle_class", "timestamp_sec", "confidence", "detail"];
+  const esc = s => `"${String(s ?? "").replace(/"/g, '""')}"`;
+  const lines = [cols.join(",")];
+  rows.forEach(r => lines.push(cols.map(c => esc(r[c])).join(",")));
+  const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = (STATE.runId && STATE.runId !== "demo") ? STATE.runId : "demo";
+  a.href = url; a.download = `violations_${stamp}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function renderEvidence(ev) {
+  if (!ev || !ev.length) { $("#evidenceGrid").innerHTML = emptyState("No evidence patches yet. They appear after a run with violations."); return; }
+  $("#evidenceGrid").innerHTML = ev.map(e => {
+    const fields = parseCitation(e.citation || "");
+    const vtype = fields["VIOLATION TYPE"] || "Violation";
+    const rows = Object.entries(fields)
+      .filter(([k]) => k !== "VIOLATION TYPE" && !/^=/.test(k))
+      .map(([k, v]) => `<div class="cite-row"><span class="cite-k">${titleCase(k)}</span><span class="cite-v">${v}</span></div>`)
+      .join("");
+    return `<div class="evidence-card">
+      <img src="${e.image}" alt="${e.filename}">
+      <div class="cite-head"><span class="badge ${/parking/i.test(vtype) ? 'parking' : 'wrong'}">${titleCase(vtype)}</span></div>
+      <div class="cite-body">${rows}</div>
+    </div>`;
+  }).join("");
+}
+// turn the raw citation .txt into {KEY: value} pairs, skipping divider lines
+function parseCitation(txt) {
+  const out = {};
+  txt.split("\n").forEach(line => {
+    const t = line.trim();
+    if (!t || /^[=\-]+$/.test(t) || /CITATION TICKET/i.test(t)) return;
+    const isBullet = t.startsWith("•");
+    const idx = t.indexOf(":");
+    if (idx === -1) return;
+    let k = t.slice(0, idx).replace(/^•\s*/, "").trim();
+    let v = t.slice(idx + 1).trim();
+    out[(isBullet ? "  " : "") + k] = v;
+  });
+  return out;
+}
+function titleCase(s) {
+  return String(s).toLowerCase().replace(/\b\w/g, c => c.toUpperCase()).replace(/\bId\b/, "ID");
+}
+
+function renderAnalytics(a, v) {
+  $("#anStats").innerHTML = [
+    statCard({ label: "Peak concurrent", value: a.peak_concurrent || 0, sub: "vehicles in frame", icon: IC.obj }),
+    statCard({ label: "Avg speed", value: a.avg_speed_px_sec || 0, unit: "px/s", sub: "moving vehicles", icon: IC.speed }),
+    statCard({ label: "Total violations", value: v.length, sub: "this run", icon: IC.alert, alert: v.length > 0 }),
+  ].join("");
+  drawBars("#anDensity", (a.density_over_time || []).map(d => d.count));
+  const counts = {}; v.forEach(x => counts[x.type] = (counts[x.type] || 0) + 1);
+  const max = Math.max(...Object.values(counts), 1);
+  const C = { "Wrong-side driving": "#C8442E", "Illegal parking": "#E08A1E" };
+  $("#anViolMix").innerHTML = Object.keys(counts).length ? Object.entries(counts).map(([k, n]) => `<div style="margin-bottom:14px"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px"><span>${k}</span><b class="mono">${n}</b></div><div style="height:9px;background:var(--line);border-radius:5px;overflow:hidden"><i style="display:block;height:100%;width:${n / max * 100}%;background:${C[k] || '#2B7BD4'}"></i></div></div>`).join("") : emptyState("No violations to chart.");
+}
+function emptyState(m) { return `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4" stroke-linecap="round"/></svg><p>${m}</p></div>`; }
+
+// =================== UPLOAD + POLYGON DRAWER (mirrors polygon.py) ===================
+const drop = $("#drop"), fileInput = $("#fileInput"), runBtn = $("#runBtn");
+let ctx = null, canvas = null;
+// RUN.zones uses the SAME schema as polygon.py: {zone_id, zone_type, polygon:[[x,y]], legal_vector}
+let RUN = { id: null, fw: 0, fh: 0, zones: [], mode: null, poly: [], closed: false, vecStart: null, awaitingVector: false };
+
+if (drop) {
+  drop.addEventListener("click", () => fileInput.click());
+  ["dragover", "dragenter"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.add("over"); }));
+  ["dragleave", "drop"].forEach(e => drop.addEventListener(e, ev => { ev.preventDefault(); drop.classList.remove("over"); }));
+  drop.addEventListener("drop", ev => { if (ev.dataTransfer.files[0]) setFile(ev.dataTransfer.files[0]); });
+  fileInput.addEventListener("change", () => fileInput.files[0] && setFile(fileInput.files[0]));
+  runBtn.addEventListener("click", startProcessing);
+  $("#demoBtn").addEventListener("click", () => { loadDemo(); setSteps(4); $("#statusMsg").innerHTML = "Demo run loaded with sample data."; });
+  setupCanvas();
+  $$(".mode-btn").forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+  $("#closeShapeBtn").addEventListener("click", closeShape);
+  $("#undoBtn").addEventListener("click", undo);
+}
+
+async function setFile(f) {
+  $("#dropTitle").textContent = f.name;
+  $("#dropSub").textContent = (f.size / 1e6).toFixed(1) + " MB · uploading…";
+  runBtn.disabled = true; setSteps(0);
+  const fd = new FormData(); fd.append("video", f);
+  $("#statusMsg").innerHTML = `<span class="spinner"></span> Uploading & grabbing a frame…`;
+  try {
+    const resp = await fetch("/api/upload", { method: "POST", body: fd });
+    if (!resp.ok) {
+      let msg = `Upload failed (HTTP ${resp.status})`;
+      try { const e = await resp.json(); if (e.detail) msg = e.detail; } catch {}
+      $("#statusMsg").innerHTML = msg;
+      return;
+    }
+    const res = await resp.json();
+    if (!res.run_id) { $("#statusMsg").innerHTML = "Upload returned no run id — check the server log."; return; }
+    RUN = { id: res.run_id, fw: res.width, fh: res.height, zones: [], mode: null, poly: [], closed: false, vecStart: null, awaitingVector: false };
+    const img = $("#frameImg"); img.onload = () => sizeCanvas(); img.src = res.image;
+    $("#zoneCard").style.display = "block";
+    $("#dropSub").textContent = `${(f.size / 1e6).toFixed(1)} MB · ${res.width}×${res.height} · draw zones below (optional)`;
+    $("#statusMsg").innerHTML = "Frame ready. Draw zones, or press Run pipeline.";
+    runBtn.disabled = false; setSteps(1);
+  } catch (err) { $("#statusMsg").innerHTML = "Upload failed — is the server running? " + err; }
+}
+
+function setupCanvas() {
+  canvas = $("#zoneCanvas"); if (!canvas) return;
+  ctx = canvas.getContext("2d");
+  canvas.addEventListener("click", onClick);
+  window.addEventListener("resize", sizeCanvas);
+}
+function sizeCanvas() { const img = $("#frameImg"); if (!canvas || !ctx || !img || !img.clientWidth) return; canvas.width = img.clientWidth; canvas.height = img.clientHeight; redraw(); }
+function toFrame(dx, dy) { return [Math.round(dx * RUN.fw / canvas.width), Math.round(dy * RUN.fh / canvas.height)]; }
+function toDisp(fx, fy) { return [fx * canvas.width / RUN.fw, fy * canvas.height / RUN.fh]; }
+
+function setMode(m) {
+  RUN.mode = m; RUN.poly = []; RUN.closed = false; RUN.vecStart = null; RUN.awaitingVector = false;
+  $$(".mode-btn").forEach(b => b.classList.toggle("active", b.dataset.mode === m));
+  $("#drawHint").textContent = m === "parking"
+    ? "Parking mode — click points to outline the no-parking area, then Close shape."
+    : "Road mode — outline the lane, Close shape, then click TWO points for the legal flow arrow (tail → head).";
+  redraw();
+}
+function onClick(e) {
+  if (!RUN.mode) { $("#drawHint").textContent = "Pick a mode first (Parking zone or Road lane)."; return; }
+  const r = canvas.getBoundingClientRect();
+  const pt = toFrame(e.clientX - r.left, e.clientY - r.top);
+  if (RUN.awaitingVector) {           // road-lane arrow: two clicks
+    if (!RUN.vecStart) { RUN.vecStart = pt; $("#drawHint").textContent = "Now click the arrowhead (direction of legal flow)."; }
+    else { commitRoad(RUN.vecStart, pt); }
+    redraw(); return;
+  }
+  if (RUN.closed) return;
+  RUN.poly.push(pt); redraw();
+}
+function closeShape() {
+  if (RUN.poly.length < 3) { $("#drawHint").textContent = "Need at least 3 points."; return; }
+  RUN.closed = true;
+  if (RUN.mode === "parking") { commitParking(); }
+  else { RUN.awaitingVector = true; $("#drawHint").textContent = "Lane closed. Click TWO points for the flow arrow (tail → head)."; }
+  redraw();
+}
+function commitParking() {
+  RUN.zones.push({ zone_id: RUN.zones.length + 1, zone_type: "illegal_parking", polygon: RUN.poly.slice(), legal_vector: null });
+  resetDrawing(); persist();
+}
+function commitRoad(start, end) {
+  RUN.zones.push({ zone_id: RUN.zones.length + 1, zone_type: "road_lane", polygon: RUN.poly.slice(), legal_vector: { start, end } });
+  resetDrawing(); persist();
+}
+function resetDrawing() { RUN.poly = []; RUN.closed = false; RUN.vecStart = null; RUN.awaitingVector = false; renderZoneList(); }
+function undo() {
+  if (RUN.awaitingVector && RUN.vecStart) { RUN.vecStart = null; }
+  else if (RUN.awaitingVector) { RUN.awaitingVector = false; RUN.closed = false; }
+  else if (RUN.poly.length) { RUN.poly.pop(); }
+  else if (RUN.zones.length) { const z = RUN.zones.pop(); renderZoneList(); persist(); }
+  redraw();
+}
+function redraw() {
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  RUN.zones.forEach(z => {
+    const col = z.zone_type === "road_lane" ? "#E08A1E" : "#C8442E";
+    drawPoly(z.polygon, col, true, `${z.zone_type === "road_lane" ? "Lane" : "Parking"} #${z.zone_id}`);
+    if (z.legal_vector) drawArrow(z.legal_vector.start, z.legal_vector.end, "#1E5FA8");
+  });
+  if (RUN.poly.length) {
+    const col = RUN.mode === "road" ? "#E08A1E" : "#C8442E";
+    drawPoly(RUN.poly, col, RUN.closed, null, true);
+  }
+  if (RUN.vecStart) { const [x, y] = toDisp(...RUN.vecStart); ctx.beginPath(); ctx.arc(x, y, 5, 0, 7); ctx.fillStyle = "#1E5FA8"; ctx.fill(); }
+}
+function drawPoly(pts, color, fill, label, dots) {
+  if (!pts.length) return;
+  ctx.beginPath();
+  pts.forEach((p, i) => { const [x, y] = toDisp(p[0], p[1]); i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+  if (fill) ctx.closePath();
+  ctx.lineWidth = 2; ctx.strokeStyle = color; ctx.stroke();
+  if (fill) { ctx.fillStyle = color + "33"; ctx.fill(); }
+  if (dots) pts.forEach(p => { const [x, y] = toDisp(p[0], p[1]); ctx.beginPath(); ctx.arc(x, y, 4, 0, 7); ctx.fillStyle = color; ctx.fill(); });
+  if (label) { const [x, y] = toDisp(pts[0][0], pts[0][1]); ctx.fillStyle = color; ctx.font = "600 12px -apple-system,sans-serif"; ctx.fillText(label, x + 6, y - 6); }
+}
+function drawArrow(s, e, color) {
+  const [x1, y1] = toDisp(...s), [x2, y2] = toDisp(...e);
+  ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.stroke();
+  const ang = Math.atan2(y2 - y1, x2 - x1), L = 12;
+  ctx.beginPath(); ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - L * Math.cos(ang - 0.4), y2 - L * Math.sin(ang - 0.4));
+  ctx.moveTo(x2, y2); ctx.lineTo(x2 - L * Math.cos(ang + 0.4), y2 - L * Math.sin(ang + 0.4));
+  ctx.stroke();
+}
+function renderZoneList() {
+  if (!RUN.zones.length) { $("#zoneList").innerHTML = `<div style="font-size:13px;color:var(--mist)">No zones yet. Drawing is optional.</div>`; return; }
+  $("#zoneList").innerHTML = RUN.zones.map((z, i) => `<div style="display:flex;align-items:center;gap:9px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:var(--blue-50)">
+    <i style="width:11px;height:11px;border-radius:3px;background:${z.zone_type === 'road_lane' ? '#E08A1E' : '#C8442E'};flex:none"></i>
+    <div style="flex:1"><div style="font-size:13px;font-weight:600">${z.zone_type === 'road_lane' ? 'Road lane' : 'Parking'} #${z.zone_id}</div><div style="font-size:11.5px;color:var(--mist)">${z.polygon.length} pts${z.legal_vector ? ' · has arrow' : ''}</div></div>
+    <button onclick="removeZone(${i})" style="border:none;background:none;cursor:pointer;color:var(--mist);font-size:18px;line-height:1">×</button></div>`).join("");
+}
+window.removeZone = i => { RUN.zones.splice(i, 1); RUN.zones.forEach((z, k) => z.zone_id = k + 1); renderZoneList(); redraw(); persist(); };
+function persist() { /* zones are sent at process time; nothing to persist mid-draw */ }
+
+function setSteps(active) { $$("#pipeSteps .pstep").forEach(s => { const i = +s.dataset.s; s.classList.toggle("done", i < active); s.classList.toggle("active", i === active); }); }
+async function startProcessing() {
+  if (!RUN.id) return;
+  runBtn.disabled = true; setSteps(2);
+  $("#statusMsg").innerHTML = `<span class="spinner"></span> Running pipeline…${RUN.zones.length ? ` (${RUN.zones.length} zone${RUN.zones.length > 1 ? 's' : ''})` : ''}`;
+  try {
+    await fetch(`/api/runs/${RUN.id}/process`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ zones: RUN.zones }) });
+  } catch { $("#statusMsg").innerHTML = "Could not start processing."; runBtn.disabled = false; return; }
+  poll(RUN.id);
+}
+async function poll(id) {
+  if (!id || id === "undefined") { $("#statusMsg").innerHTML = "No valid run to track. Re-upload the video."; runBtn.disabled = false; return; }
+  const tick = async () => {
+    const r = await fetch(`/api/runs/${id}`).then(r => r.json());
+    const stepMap = { "Detection & tracking": 2, "Parked-vehicle extraction": 3, "Violation engines": 3, "Evidence harvesting": 4 };
+    if (r.status === "done") {
+      setSteps(4);
+      $("#statusMsg").innerHTML = "✓ Pipeline complete." + (r.warn ? ` <span style="color:var(--amber)">(${r.warn})</span>` : "");
+      if (r.annotated) $("#annoWrap").innerHTML = `<video controls src="/dash_output/${id}/${r.annotated}"></video>`;
+      if (r.trajectory_map) $("#trajWrap").innerHTML = `<video controls src="/dash_output/${id}/${r.trajectory_map}"></video>`;
+      await loadRuns(); await selectRun(id); return;
+    }
+    if (r.status === "error") { $("#statusMsg").innerHTML = `Pipeline failed — ${r.error}`; runBtn.disabled = false; return; }
+    if (r.step && stepMap[r.step]) setSteps(stepMap[r.step]);
+    $("#statusMsg").innerHTML = `<span class="spinner"></span> ${r.step || "Processing"}…`;
+    setTimeout(tick, 1500);
+  };
+  tick();
+}
+
+(async function init() {
+  const runs = await loadRuns();
+  if (!runs.some(r => r.status === "done")) await loadDemo();
+  showPage(document.body.dataset.active || "dashboard");
+})();
+
+</script>
+</body>
+</html>

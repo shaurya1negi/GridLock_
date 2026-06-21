@@ -1,5 +1,5 @@
-# Traffic Violation Detection Pipeline — Foundation & Analytical Engine
-This repository contains the core tracking and analytical orchestration framework for the automated traffic violation detection pipeline. The architecture is engineered around a Single Pass, Multi-Stage Pipeline that decouples expensive GPU computing from downstream multi-point geometric rule checking.
+## Traffic Violation Detection Pipeline — Foundation & Analytical Engine
+# This repository contains the core tracking and analytical orchestration framework for the automated traffic violation detection pipeline. The architecture is engineered around a Single Pass, Multi-Stage Pipeline that decouples expensive GPU computing from downstream multi-point geometric rule checking.
 ```
                                                           ┌─────────────────────────────────────┐
                                                           │      Input Raw Traffic Video        │
@@ -78,11 +78,31 @@ Core System Architectural PrinciplesSingle Source of Truth (SSoT) Telemetry Sync
                                                              └─────────────────────────────────────────┘
 ```
 
-# CSV Schema
-Every run generates a chronologically structured, tracking lifecycle-grouped matrix sorted sequentially by vehicle_class -> tracker_id -> frame_index.
+## CSV Schema
+# Every run generates a chronologically structured, tracking lifecycle-grouped matrix sorted sequentially by vehicle_class -> tracker_id -> frame_index.
 
-# Detailed Violation Rule Engine Mechanics
-1. Multi-Point Spatial Consensus Parking Check
+| Column | Type | Detailed Engineering Definition |
+| :--- | :--- | :--- |
+| `tracker_id` | `int` | Persistent identity tag assigned by BoT-SORT. Remains invariant across brief occlusions and visual tracking blocks. |
+| `frame_index` | `int` | Zero-based incremental frame index counter. |
+| `timestamp_sec` | `float` | Chronological timeline position computed via `frame_index / TRUE_FPS`. Independent of CPU wall-clock processing time. |
+| `vehicle_class` | `str` | Stabilized classification string determined by class history majority voting (e.g., `"car"`, `"motorcycle"`, `"person"`). |
+| `class_id` | `int` | Original numerical YOLO classification tracking index. |
+| `confidence` | `float` | Raw confidence coefficient mapping, bounding from `0.0` to `1.0`. |
+| `x1, y1, x2, y2` | `float` | One-Euro-filtered top-left and bottom-right pixel edge bounds coordinates. |
+| `bottom_center_x` | `float` | Midpoint x-coordinate along the lower base bound line. |
+| `bottom_center_y` | `float` | Ground-plane road contact point y-coordinate. **Required for spatial zone intersection tests** to neutralize centroid vertical shifting on tall vehicles (trucks/buses). |
+| `box_width` | `float` | Horizontal frame footprint width in pixels (`x2 - x1`). |
+| `box_height` | `float` | Vertical frame footprint height in pixels (`y2 - y1`). |
+| `velocity_x_px_sec` | `float` | Filtered horizontal velocity component mapping in pixels per second. |
+| `velocity_y_px_sec` | `float` | Filtered vertical velocity component mapping in pixels per second. |
+| `speed_px_sec` | `float` | Scalar velocity magnitude computed as $\sqrt{v_x^2 + v_y^2}$. Used for stationary checks and speed grading. |
+| `heading_deg` | `float` | Angular trajectory vector path direction ($\theta \in [0^\circ, 360^\circ)$), where $0^\circ = \text{Right}$, $90^\circ = \text{Down}$, $180^\circ = \text{Left}$, $270^\circ = \text{Up}$. Returns `-1.0` if vehicle is stationary. |
+| `is_stationary` | `int` | Boolean binary flag (`0` or `1`). Asserts `1` if the moving scalar speed remains below the threshold for continuous frame cycles. |
+| `frames_since_first_seen` | `int` | Rolling lifetime persistence tracker. Used to discard ghost artifacts ($\text{frames} < 5$) and set confirmation windows for complex violations. |
+
+## Detailed Violation Rule Engine Mechanics
+# 1. Multi-Point Spatial Consensus Parking Check
 The parking rule engine completely bypasses single-point boundary errors by setting up a 5-Point Consensus Voting Grid mapped proportionally across the vehicle bounding box footprint:
 
 ```
@@ -114,11 +134,11 @@ The Logic: When a vehicle enters a stationary state inside the tracking array, t
 ```
 The Logic: When tracing out a road_lane structural polygon, the operator explicitly registers a legal direction vector arrow mapping directly across the lane center profile. The engine calculates the base heading angle of this vector. As vehicles traverse this polygon, their stabilized heading_deg values are continually evaluated against the lane's allowed direction angle. If the angular deviation exceeds your calibrated threshold ($\Delta\theta \ge 135^\circ$), the vehicle is instantly flagged for wrong-side driving.
 
-# Intelligent Evidence Harvesting Core
+## Intelligent Evidence Harvesting Core
 
 Your system doesn't crop frames at the exact microsecond a rule condition is crossed. The evidence harvesting layer performs automated trajectory life-cycle quality grading:Path Boundary Stabilization: The harvester automatically slices away the initial and closing 10% blocks of the vehicle's violation tracking lifespan to omit entry/exit camera artifacts or edge occlusions.Peak Area Extraction: It iterates through the remaining timeline and isolates the frame where the vehicle achieves its maximum bounding box pixel area, ensuring the asset captured is closest to the lens and free from motion blur.Padded Citation Packaging: It captures the frame patch with a 15% expanded padding perimeter, saves a crisp standalone .jpg image evidence file, and outputs a formatted .txt official sidecar citation docket filled with vector trajectory data, timestamp mappings, and confidence ratings.Directory Pipeline Architecture Layout├── main.py                     
 
-# Directory Pipeline Architecture Layout
+## Directory Pipeline Architecture Layout
 
 ```
                                       ├── main.py                     # Global Orchestrator & SSoT Initialization
@@ -140,8 +160,8 @@ Your system doesn't crop frames at the exact microsecond a rule condition is cro
                                               └── best_shot_id_*.txt  # Complete Citation Metadata Ticket Sidecars
 ```
 
-# Verification Execution Flow
-To execute the complete pipeline, pass the input raw file string down through your configuration flags:
+## Verification Execution Flow
+# To execute the complete pipeline, pass the input raw file string down through your configuration flags:
 
 >>python main.py --video data/traffic_stream.mp4
 

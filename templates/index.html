@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Traffic Violation Dashboard</title>
+<link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body data-active="{{ active }}">
+
+<aside class="sidebar">
+  <div class="brand">
+    <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9h18M9 3v18"/><rect x="3" y="3" width="18" height="18" rx="2"/></svg></div>
+    <div><h1>RoadIQ</h1><div class="tag">Traffic intelligence</div></div>
+  </div>
+  <nav class="nav">
+    <a data-page="dashboard" href="/dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Overview</a>
+    <a data-page="upload" href="/upload"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg>Process video</a>
+    <a data-page="violations" href="/violations"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>Violations</a>
+    <a data-page="evidence" href="/evidence"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21" stroke-linecap="round" stroke-linejoin="round"/></svg>Evidence</a>
+    <a data-page="analytics" href="/analytics"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 4-6" stroke-linecap="round" stroke-linejoin="round"/></svg>Analytics</a>
+  </nav>
+  <div class="foot"><div><span class="dot-live"></span>Pipeline online</div><div style="margin-top:4px">YOLO11m · BoT-SORT</div></div>
+</aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="crumb">RoadIQ / <b id="crumb">Overview</b></div>
+    <div class="run-pill"><span class="dot-live"></span><span>Run</span><select id="runSelect"><option>no runs yet</option></select></div>
+  </header>
+  <div class="content">
+
+    <!-- OVERVIEW -->
+    <section class="page" id="page-dashboard">
+      <div class="page-head"><h2>System overview</h2><p>One processing pass produces every downstream signal. Cards read from the real pipeline output.</p></div>
+      <div class="grid cols-4" id="statCards"></div>
+      <div class="grid cols-2" style="margin-top:16px">
+        <div class="card"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 4-6" stroke-linecap="round" stroke-linejoin="round"/></svg>Traffic density over time</h3><div class="bars" id="ovDensity"></div><div class="legend"><span><i style="background:var(--blue-500)"></i>Concurrent tracked vehicles per second</span></div></div>
+        <div class="card"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>Vehicle mix</h3><div class="donut-wrap"><svg class="donut" id="ovDonut" viewBox="0 0 42 42"></svg><div class="donut-legend" id="ovDonutLegend"></div></div></div>
+      </div>
+      <div class="card" style="margin-top:16px"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>Pipeline stages</h3><div id="archDiagram"></div></div>
+    </section>
+
+    <!-- UPLOAD -->
+    <section class="page" id="page-upload">
+      <div class="page-head"><h2>Process a traffic video</h2><p>Upload footage, draw parking zones and road lanes with flow arrows, then run the full violation pipeline.</p></div>
+      <div class="grid cols-2">
+        <div class="card">
+          <input type="file" id="fileInput" accept="video/*" hidden>
+          <div class="drop" id="drop"><div class="big"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></div><h4 id="dropTitle">Drop a video here, or click to browse</h4><p id="dropSub">MP4 · runs YOLO11m + BoT-SORT + violation engines</p></div>
+          <div style="display:flex;gap:10px;margin-top:16px"><button class="btn" id="runBtn" disabled>Run pipeline</button><button class="btn ghost" id="demoBtn">Load demo run</button></div>
+          <div class="note amber">GPU note — detection is compute-heavy. On CPU, use a short, lower-resolution clip. The page polls for completion automatically.</div>
+        </div>
+        <div class="card">
+          <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>Pipeline status</h3>
+          <div class="pipe-steps" id="pipeSteps">
+            <div class="pstep" data-s="0"><div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/></svg></div><div class="lbl">Upload</div></div>
+            <div class="pstep" data-s="1"><div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="lbl">Zones</div></div>
+            <div class="pstep" data-s="2"><div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 9l4 3-4 3" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div class="lbl">Detect</div></div>
+            <div class="pstep" data-s="3"><div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg></div><div class="lbl">Violations</div></div>
+            <div class="pstep" data-s="4"><div class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="lbl">Evidence</div></div>
+          </div>
+          <div id="statusMsg" style="margin-top:18px;font-size:13.5px;color:var(--slate)">Waiting for a video.</div>
+        </div>
+      </div>
+
+      <!-- ZONE DRAWER -->
+      <div class="card" id="zoneCard" style="margin-top:16px;display:none">
+        <h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Set up zones</h3>
+        <p style="font-size:13px;color:var(--slate);margin:-6px 0 14px">The camera is static, so zones drawn on this frame hold for the whole clip. Choose a mode, click points to outline an area, then close it. Road lanes also need a flow-direction arrow.</p>
+        <div style="display:flex;gap:18px;flex-wrap:wrap">
+          <div style="flex:2;min-width:340px">
+            <div style="display:flex;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+              <button class="mode-btn" data-mode="parking"><i style="background:var(--red)"></i>Parking zone</button>
+              <button class="mode-btn" data-mode="road"><i style="background:var(--amber)"></i>Road lane + arrow</button>
+              <button class="btn ghost sm" id="closeShapeBtn">Close shape</button>
+              <button class="btn ghost sm" id="undoBtn">Undo</button>
+            </div>
+            <div id="canvasWrap" style="position:relative;border-radius:10px;overflow:hidden;background:var(--navy-900);line-height:0">
+              <img id="frameImg" style="width:100%;display:block" alt="frame">
+              <canvas id="zoneCanvas" style="position:absolute;inset:0;width:100%;height:100%;cursor:crosshair"></canvas>
+            </div>
+            <div class="hint" id="drawHint">Pick a mode above to start drawing.</div>
+          </div>
+          <div style="flex:1;min-width:200px">
+            <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--mist);font-weight:600;margin-bottom:10px">Configured zones</div>
+            <div id="zoneList"><div style="font-size:13px;color:var(--mist)">No zones yet. Drawing is optional — skip to process the whole frame.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:16px">
+        <div class="card"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3z" stroke-linejoin="round"/></svg>Annotated output</h3><div class="video-wrap" id="annoWrap"><div class="placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M10 9l5 3-5 3z"/></svg><div>Boxes + IDs render here after processing</div></div></div></div>
+        <div class="card"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="19" r="2"/><path d="M5 17c4-9 9-12 16-13" stroke-linecap="round"/></svg>Trajectory map</h3><div class="video-wrap" id="trajWrap"><div class="placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="5" cy="19" r="2"/><path d="M5 17c4-9 9-12 16-13"/></svg><div>Isolated motion-vector view</div></div></div></div>
+      </div>
+    </section>
+
+    <!-- VIOLATIONS -->
+    <section class="page" id="page-violations">
+      <div class="page-head"><h2>Detected violations</h2><p>Illegal parking (5-point consensus) and wrong-side driving (vector alignment) from the real engines.</p></div>
+      <div class="grid cols-2" id="violStats" style="margin-bottom:16px"></div>
+      <div class="card"><h3 style="justify-content:space-between"><span style="display:flex;align-items:center;gap:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>Violation log</span><button class="btn ghost sm" id="dlCsvBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;margin-right:6px;vertical-align:-2px"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Download CSV</button></h3><div id="violTable"></div></div>
+    </section>
+
+    <!-- EVIDENCE -->
+    <section class="page" id="page-evidence">
+      <div class="page-head"><h2>Evidence patches</h2><p>The harvester picks the sharpest, largest frame per violator and writes a citation sidecar.</p></div>
+      <div class="grid cols-3" id="evidenceGrid"></div>
+    </section>
+
+    <!-- ANALYTICS -->
+    <section class="page" id="page-analytics">
+      <div class="page-head"><h2>Analytics &amp; reporting</h2><p>Aggregate trends over the trajectory records.</p></div>
+      <div class="grid cols-3" id="anStats" style="margin-bottom:16px"></div>
+      <div class="grid cols-2">
+        <div class="card"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 15l3-4 3 2 4-6" stroke-linecap="round" stroke-linejoin="round"/></svg>Traffic density timeline</h3><div class="bars" id="anDensity"></div></div>
+        <div class="card"><h3><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" stroke-linejoin="round"/></svg>Violations by type</h3><div id="anViolMix"></div></div>
+      </div>
+    </section>
+
+  </div>
+</div>
+<script src="/static/dashboard.js"></script>
+</body>
+</html>

@@ -169,12 +169,12 @@ class PolygonDrawer:
                 self.active_zone_type = "illegal_parking"
                 self.current_polygon = []
                 self.drawing_vector = False
-                print("🛑 Mode set: Drawing Illegal Parking Zone. Left-click points, Right-click to close.")
+                print("Mode set: Drawing Illegal Parking Zone. Left-click points, Right-click to close.")
             elif key == ord('r'):
                 self.active_zone_type = "road_lane"
                 self.current_polygon = []
                 self.drawing_vector = False
-                print("🛣️ Mode set: Drawing Traffic Lane. Left-click points, Right-click to close, then trace flow arrow.")
+                print("Mode set: Drawing Traffic Lane. Left-click points, Right-click to close, then trace flow arrow.")
                 
             # --- NEW: DETAILED STATE MACHINE UNDO CORE LAYERS ---
             elif key == ord('z'):

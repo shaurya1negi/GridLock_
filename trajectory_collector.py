@@ -138,14 +138,14 @@ def process_video(video_path, output_dir=None, fps_override=None , polygon_json_
         "is_stationary",       
         "frames_since_first_seen",  
     ])
- 
+    
     tracker_filters = defaultdict(lambda: {
         "x1": {"one_euro": OneEuroFilter(config.ONE_EURO_MIN_CUTOFF, config.ONE_EURO_BETA, config.ONE_EURO_D_CUTOFF), "ema": EMAFilter(config.EMA_ALPHA)},
         "y1": {"one_euro": OneEuroFilter(config.ONE_EURO_MIN_CUTOFF, config.ONE_EURO_BETA, config.ONE_EURO_D_CUTOFF), "ema": EMAFilter(config.EMA_ALPHA)},
         "x2": {"one_euro": OneEuroFilter(config.ONE_EURO_MIN_CUTOFF, config.ONE_EURO_BETA, config.ONE_EURO_D_CUTOFF), "ema": EMAFilter(config.EMA_ALPHA)},
         "y2": {"one_euro": OneEuroFilter(config.ONE_EURO_MIN_CUTOFF, config.ONE_EURO_BETA, config.ONE_EURO_D_CUTOFF), "ema": EMAFilter(config.EMA_ALPHA)},
     })
-    
+
     # Historical state registries
     velocity_history = {}
     class_history = defaultdict(list)
@@ -266,8 +266,8 @@ def process_video(video_path, output_dir=None, fps_override=None , polygon_json_
                     round(speed_px_sec, 2), round(heading_deg, 2),
                     is_stationary, frames_since_first_seen,
                 ])
- 
-                # ---- STANDARD OUTPUT VISUALIZATION ----
+                
+                # ---- STANDARD OUTPUT VISUALIZATION ---- Annotate the video with bounding boxes, class labels
                 cv2.rectangle(annotated_frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 0, 255), 2)
                 label = f"ID:{tracker_id} {vehicle_class} {confidence:.2f}"
                 cv2.putText(annotated_frame, label, (int(x1), max(int(y1) - 8, 0)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)

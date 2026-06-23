@@ -20,13 +20,20 @@ BLACK_CANVAS_FILENAME_PREFIX = "isolated_trajectory_map"
 SAVE_BLACK_CANVAS_VIDEO = True
 
 # ---------------------------------------------------------------------------
-# MODEL SETTINGS
+# image engine MODEL SETTINGS
 # ---------------------------------------------------------------------------
+CUSTOM_WEIGHTS_PATH_STATIC  = "yolo11m.pt"
 
-# Path to the YOLO weights file used for vehicle / person detection.
-# Use a pretrained checkpoint (e.g. "yolo11m.pt") to auto-download from
-# Ultralytics, or point this to your own fine-tuned weights file.
-YOLO_MODEL_PATH = "yolo11m.pt"
+CONFIDENCE_THRES_STATIC = 0.25 # default 0.25
+
+IOU_THRES_STATIC = 0.45 # default 0.45
+# In TARGET_CLASSES_STATIC only include the classes the model is trained for .
+TARGET_CLASSES_STATIC = {0: 'With helmet', 1: '  Without helmet'}
+
+# ---------------------------------------------------------------------------
+# video engine MODEL SETTINGS
+# ---------------------------------------------------------------------------
+YOLO_MODEL_PATH = "weights/yolo11m.pt"
 
 # Minimum detection confidence. Detections below this are discarded by
 # YOLO/the tracker before they ever reach our code.
@@ -39,21 +46,21 @@ IOU_THRESHOLD = 0.3 #A lower IOU_THRESHOLD means more aggressive rejection and d
 # These indices match the default COCO dataset class list that pretrained
 # YOLOv8 models ship with. Update this dict if you fine-tune on a custom
 # dataset with different class indices.
+#Bellow TARGET_CLASSES shoudl only include the standard classes the yolo model trained on liike bicycle , car etc  regarding the coco dataset.
+#Do not mix the indexes these are more important than the string as yolo only understand person class as 0 not "person" . 
 TARGET_CLASSES = {
     1: "bicycle",
     2: "car",
     3: "motorcycle",
     4: "bus",
-    5: "truck",
+    7: "truck",
 }
-
 IMAGE_SIZE = 1280  # 640 YOLOv8 default image size. Change if you fine-tune on a different size.
 # ---------------------------------------------------------------------------
 # TRACKER SETTINGS (BoT-SORT)
 # ---------------------------------------------------------------------------
 
 # Ultralytics ships BoT-SORT as a YAML tracker config. "botsort.yaml" is the
-# built-in default. If you later want to tune BoT-SORT's internal
 # parameters (e.g. re-identification thresholds), copy that YAML into this
 # project folder, edit it, and point this variable to your local copy.
 TRACKER_CONFIG = "custom_botsort.yaml"  # botsort.yaml, bytetrack.yaml is preferred
@@ -81,7 +88,7 @@ VIDEO_CODEC = "mp4v"
 # velocity is a derivative (delta/dt), so it amplifies noise much more than
 # raw position does. You want quick response to real speed changes but
 # suppression of frame-to-frame noise spikes.
-#
+
 # Formula: smoothed = alpha * raw + (1-alpha) * smoothed_prev
 # So: lower alpha = MORE smoothing but MORE lag (bad for braking detection)
 #     higher alpha = LESS smoothing but LESS lag

@@ -1,145 +1,155 @@
 """
 evidence_harvester.py
 ---------------------
-Upgraded Evidence Harvesting Layer with Automated Frame Quality Grading and Companion Metadata Sidecars.
+Upgraded Evidence Harvesting Layer with Polymorphic Video/Image Canvas Support.
+Patched to dynamically parse target video frames from static mode violation rows.
 """
 
 import os
 import cv2
 import pandas as pd
 
-def harvest_violation_patches(video_path, violation_csv_path, trajectory_csv_path, output_dir, pad_percent=0.15):
+def harvest_violation_patches(video_path, violation_csv_path, trajectory_csv_path, output_dir, pad_percent=0.10):
     """
-    Analyzes full tracking timelines to automatically isolate and harvest the 
-    highest-resolution, least-blurry frame patch for violating vehicle IDs, 
-    and generates a matching metadata citation file.
+    Analyzes tracking timelines or static frame metadata to automatically isolate 
+    and harvest expanded bounding boxes for violations, generating automated dockets.
     """
     print(f"\nInitializing Intelligent Evidence Harvesting with Sidecars for: {os.path.basename(violation_csv_path)}")
     
-    # 1. --- DYNAMIC PATH RESOLUTION ---
-    if "wrong_side" in violation_csv_path:
-        timeline_csv_path = violation_csv_path.replace("violations_wrong_side_", "timeline_wrong_side_")
-    else:
-        timeline_csv_path = violation_csv_path.replace("violations_parking_", "timeline_parked_")
-
-    if not os.path.exists(violation_csv_path) or not os.path.exists(timeline_csv_path):
-        print(f"Required data timelines missing. Looked for:\n   -> {violation_csv_path}\n   -> {timeline_csv_path}\nSkipping intelligent harvest.")
+    if not os.path.exists(violation_csv_path):
+        print(f"Required violation logs missing at: {violation_csv_path}. Skipping harvest.")
         return
 
     df_violations = pd.read_csv(violation_csv_path)
-    df_timeline = pd.read_csv(timeline_csv_path)
-    
     if df_violations.empty:
         print("ℹ Violation log is empty. No evidence patches to extract.")
         return
 
+    # Check if we are processing a static image or a video timeline
+    is_static_image = trajectory_csv_path is None or not os.path.exists(trajectory_csv_path)
+    if not is_static_image:
+        df_timeline = pd.read_csv(trajectory_csv_path)
+
     evidence_dir = os.path.join(output_dir, "evidence")
     os.makedirs(evidence_dir, exist_ok=True)
 
-    cap = cv2.VideoCapture(video_path)
-    img_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    img_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    # Polymorphic file canvas acquisition
+    is_video = video_path.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm'))
+    
+    if is_video:
+        cap = cv2.VideoCapture(video_path)
+        img_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        img_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    else:
+        static_frame = cv2.imread(video_path)
+        if static_frame is None:
+            print(f"⚠️ Unable to load base canvas file: {video_path}")
+            return
+        img_h, img_w = static_frame.shape[:2]
 
-    # 2. Iterate over unique violating vehicle IDs
-    for tid, group in df_violations.groupby('tracker_id'):
+    # Iterate over unique violating instances
+    for idx, row in df_violations.iterrows():
+        tid = int(row['tracker_id']) if 'tracker_id' in row else idx
+        v_class = row['vehicle_class'] if 'vehicle_class' in row else 'motorcycle'
         
-        # Isolate the vehicle's entire tracked lifecycle history inside the specific violation window
-        is_parking = "stop_start_frame" in group.columns
-        if is_parking:
-            sf = int(group['stop_start_frame'].iloc[0])
-            df_frame = int(group['stop_end_frame'].iloc[0])
-            
-            vehicle_history = df_timeline[
-                (df_timeline['tracker_id'] == tid) & 
-                (df_timeline['frame_index'] >= sf) & 
-                (df_timeline['frame_index'] <= df_frame)
-            ].copy()
-        else:
-            vehicle_history = df_timeline[df_timeline['tracker_id'] == tid].copy()
-
-        if vehicle_history.empty:
-            print(f"  Timeline history window empty for Tracker ID {tid}. Skipping.")
-            continue
-
-        # 3. --- THE AUTOMATED QUALITY GRADING ENGINE ---
-        vehicle_history['box_area'] = (vehicle_history['x2'] - vehicle_history['x1']) * \
-                                      (vehicle_history['y2'] - vehicle_history['y1'])
+        # Clean violation string safely
+        raw_viol_type = str(row['violation_type']).strip()
+        violation_type_slug = raw_viol_type.replace(" ", "_").lower().split("_(")[0]
         
-        if len(vehicle_history) > 10:
-            trim_size = int(len(vehicle_history) * 0.1)
-            stable_zone = vehicle_history.iloc[trim_size : -trim_size]
-        else:
-            stable_zone = vehicle_history
-
-        best_entry = stable_zone.loc[stable_zone['box_area'].idxmax()]
-        
-        target_frame = int(best_entry['frame_index'])
-        x1 = best_entry['x1']
-        y1 = best_entry['y1']
-        x2 = best_entry['x2']
-        y2 = best_entry['y2']
-        v_class = best_entry['vehicle_class']
-
-        # Calculate bounding box dimensions
-        w = x2 - x1
-        h = y2 - y1
-
-        # --- THE EXPANDED PADDING LAYER ---
-        x1_padded = max(0, int(x1 - (pad_percent * w)))
-        y1_padded = max(0, int(y1 - (pad_percent * h)))
-        x2_padded = min(img_w, int(x2 + (pad_percent * w)))
-        y2_padded = min(img_h, int(y2 + (pad_percent * h)))
-
-        # 4. Fast video frame seek mechanics
-        cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
-        ret, frame = cap.read()
-        
-        if ret:
-            # Crop the expanded patch layout array matrix
-            vehicle_patch = frame[y1_padded:y2_padded, x1_padded:x2_padded]
-            
-            # Save visual artifact down to disk
-            violation_type = group['violation_type'].iloc[0].replace(" ", "_").lower()
-            violation_type = violation_type.split("_(")[0] 
-            
-            base_filename = f"best_shot_id_{tid}_{v_class}_{violation_type}_frame_{target_frame}"
-            
-            # Export A: Save Image Patch
-            patch_path = os.path.join(evidence_dir, f"{base_filename}.jpg")
-            cv2.imwrite(patch_path, vehicle_patch)
-            
-            # Export B: --- NEW: GENERATE CITATION METADATA SIDECAR ---
-            metadata_path = os.path.join(evidence_dir, f"{base_filename}.txt")
-            with open(metadata_path, 'w') as meta_file:
-                meta_file.write("==================================================\n")
-                meta_file.write("          AUTOMATED TRAFFIC CITATION TICKET       \n")
-                meta_file.write("==================================================\n")
-                meta_file.write(f"VIOLATION TYPE  : {group['violation_type'].iloc[0].upper()}\n")
-                meta_file.write(f"TRACKER ID      : {tid}\n")
-                meta_file.write(f"VEHICLE CLASS   : {v_class.upper()}\n")
-                meta_file.write("--------------------------------------------------\n")
-                meta_file.write(f"EVIDENCE FRAME  : {target_frame}\n")
-                meta_file.write(f"EVIDENCE TIME   : {round(best_entry['timestamp_sec'], 2)} seconds from video start\n")
-                meta_file.write(f"RESOLUTION AREA : {int(best_entry['box_area'])} pixels\n")
+        # Determine coordinate metrics from timeline or flat row
+        if is_static_image:
+            # 🎯 FIX: Check if the row contains a logged video frame index instead of hardcoding 0!
+            if 'frame_index' in row and is_video:
+                target_frame = int(row['frame_index'])
+                timestamp_sec = f"{row['timestamp_sec']} seconds"
+            else:
+                target_frame = 0
+                timestamp_sec = "N/A (Static Image)"
                 
-                # Contextual Conditional Writing Block based on violation type constraints
-                if is_parking:
-                    meta_file.write("--------------------------------------------------\n")
-                    meta_file.write("PARKING LOG METRICS:\n")
-                    meta_file.write(f"  • Entry Timestamp: {group['lower_timestamp'].iloc[0]}s (Frame {sf})\n")
-                    meta_file.write(f"  • Exit Timestamp : {group['upper_timestamp'].iloc[0]}s (Frame {df_frame})\n")
-                    meta_file.write(f"  • Total Duration : {group['duration_sec'].iloc[0]} seconds\n")
-                    meta_file.write(f"  • Target Zone ID : Prohibited Zone #{group['prohibited_zone_id'].iloc[0]}\n")
-                else:
-                    meta_file.write("--------------------------------------------------\n")
-                    meta_file.write("VECTOR MOTION METRICS:\n")
-                    meta_file.write(f"  • Vehicle Direction: {group['car_heading_deg'].iloc[0]}°\n")
-                    meta_file.write(f"  • Allowed Direction: {group['legal_heading_deg'].iloc[0]}°\n")
-                    meta_file.write(f"  • Deviation Angle  : {group['angular_deviation'].iloc[0]}° against legal lane flow\n")
-                    meta_file.write(f"  • Target Zone ID   : Road Lane #{group['road_zone_id'].iloc[0]}\n")
-                    
-                meta_file.write("==================================================\n")
-                
-    print(f"evidence generated at: {evidence_dir}")
+            x1, y1, x2, y2 = float(row['x1']), float(row['y1']), float(row['x2']), float(row['y2'])
+            box_area = int((x2 - x1) * (y2 - y1))
+        else:
+            is_parking = "stop_start_frame" in df_violations.columns
+            if is_parking:
+                sf = int(row['stop_start_frame'])
+                df_frame = int(row['stop_end_frame'])
+                vehicle_history = df_timeline[(df_timeline['tracker_id'] == tid) & (df_timeline['frame_index'] >= sf) & (df_timeline['frame_index'] <= df_frame)].copy()
+            else:
+                vehicle_history = df_timeline[df_timeline['tracker_id'] == tid].copy()
 
-    cap.release()
+            if vehicle_history.empty:
+                continue
+
+            vehicle_history['box_area'] = (vehicle_history['x2'] - vehicle_history['x1']) * (vehicle_history['y2'] - vehicle_history['y1'])
+            best_entry = vehicle_history.loc[vehicle_history['box_area'].idxmax()]
+            
+            target_frame = int(best_entry['frame_index'])
+            x1, y1, x2, y2 = float(best_entry['x1']), float(best_entry['y1']), float(best_entry['x2']), float(best_entry['y2'])
+            timestamp_sec = f"{round(best_entry['timestamp_sec'], 2)} seconds"
+            box_area = int(best_entry['box_area'])
+
+        w, h = (x2 - x1), (y2 - y1)
+
+        # Apply standardized padding boundaries
+        if v_class.lower() in ['motorcycle', 'bicycle', 'bike']:
+            current_pad_x = 0.10  
+            current_pad_y1 = 0.15 
+            current_pad_y2 = 0.10 
+        else:
+            current_pad_x = pad_percent
+            current_pad_y1 = pad_percent
+            current_pad_y2 = pad_percent
+
+        x1_padded = max(0, int(x1 - (current_pad_x * w)))
+        y1_padded = max(0, int(y1 - (current_pad_y1 * h)))
+        x2_padded = min(img_w, int(x2 + (current_pad_x * w)))
+        y2_padded = min(img_h, int(y2 + (current_pad_y2 * h)))
+
+        # Frame capture safely from the precise matching timestamp index
+        if is_video:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+            ret, frame = cap.read()
+            if not ret: continue
+        else:
+            frame = static_frame.copy()
+
+        vehicle_patch = frame[y1_padded:y2_padded, x1_padded:x2_padded]
+        
+        # Explicit naming layout scheme
+        source_mode = "image" if not is_video else f"frame_{target_frame}"
+        base_filename = f"ticket_id_{tid}_{v_class}_{violation_type_slug}_{source_mode}"
+        
+        # Save image patch securely
+        if vehicle_patch.size > 0:
+            cv2.imwrite(os.path.join(evidence_dir, f"{base_filename}.jpg"), vehicle_patch)
+        
+        # Generate companion text ticket cleanly
+        ticket_path = os.path.join(evidence_dir, f"{base_filename}.txt")
+        with open(ticket_path, 'w', encoding='utf-8') as meta_file:
+            meta_file.write("==================================================\n")
+            meta_file.write("          AUTOMATED TRAFFIC CITATION TICKET       \n")
+            meta_file.write("==================================================\n")
+            meta_file.write(f"OFFENSE REPORT  : {raw_viol_type.upper()}\n")
+            meta_file.write(f"VEHICLE INDEX   : ID #{tid}\n")
+            meta_file.write(f"VEHICLE CLASS   : {v_class.upper()}\n")
+            meta_file.write("--------------------------------------------------\n")
+            meta_file.write(f"CAPTURE MODE    : {'STATIC PHOTOGRAPHIC SNAPSHOT' if not is_video else 'TEMPORAL VIDEO STREAM'}\n")
+            meta_file.write(f"EVIDENCE TIME   : {timestamp_sec}\n")
+            if is_video:
+                meta_file.write(f"TARGET FRAME    : {target_frame}\n")
+            meta_file.write(f"CROP RESOLUTION : {box_area} pixels\n")
+            meta_file.write("--------------------------------------------------\n")
+            
+            if "riders_detected" in row:
+                meta_file.write(f"  • Total Riders Onboard : {int(row['riders_detected'])}\n")
+            if "helmet_infractions" in row:
+                meta_file.write(f"  • Unhelmeted Heads Found: {int(row['helmet_infractions'])}\n")
+            if "points_inside_zone" in row:
+                meta_file.write(f"  • Parking Consensus Score: {row['points_inside_zone']}\n")
+            if "angular_deviation" in row:
+                meta_file.write(f"  • Deviation Heading Angle: {row['angular_deviation']}°\n")
+                
+            meta_file.write("==================================================\n")
+                
+    print(f"Evidence patches cleanly compiled at: {evidence_dir}")
+    if is_video: cap.release()

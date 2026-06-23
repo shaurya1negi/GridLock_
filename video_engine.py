@@ -221,7 +221,8 @@ def run_video_pipeline(video_path, output_dir, skip_polygon_drawing , bike_compl
     compliance_citations = None
     # Initialize micro models for motorcycle safety compliance auditing
     person_model = YOLO("weights/yolo11m.pt")
-    helmet_model = YOLO("weights/helmet.pt")
+    if(bike_compliance):
+        helmet_model = YOLO("weights/helmet.pt")
 
     if summary_parked_csv:
         try:
@@ -274,7 +275,7 @@ def run_video_pipeline(video_path, output_dir, skip_polygon_drawing , bike_compl
         except Exception as e:
             print(f"⚠️ Warning: Wrong-side evidence harvest failed: {e}")
 
-    if compliance_citations and os.path.exists(compliance_citations):
+    if bike_compliance and compliance_citations and os.path.exists(compliance_citations):
         try:
             print(f"   -> Routing Motorcycle Compliance Context (Static Crop Route)...")
             # Since compliance logs spatial bounding boxes directly inside the output file,

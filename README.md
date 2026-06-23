@@ -163,8 +163,8 @@ Your system doesn't crop frames at the exact microsecond a rule condition is cro
 ## Verification Execution Flow
 # To execute the complete pipeline, pass the input raw file string down through your configuration flags:
 
->>python main.py --video data/traffic_stream.mp4
+>>python main.py --input data/traffic_stream.mp4
 
 To reuse existing polygon layouts across repeated evaluation runs and skip the interactive configuration drawer, append the skip modifier flag:
 
->>python main.py --video data/traffic_stream.mp4 --skip-polygon-drawing
+>>python main.py --input data/traffic_stream.mp4 --skip-polygon-drawing

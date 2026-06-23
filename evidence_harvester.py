@@ -92,9 +92,9 @@ def harvest_violation_patches(video_path, violation_csv_path, trajectory_csv_pat
 
         # Apply standardized padding boundaries
         if v_class.lower() in ['motorcycle', 'bicycle', 'bike']:
-            current_pad_x = 0.10  
-            current_pad_y1 = 0.15 
-            current_pad_y2 = 0.10 
+            current_pad_x = 0.55  
+            current_pad_y1 = 0.45 
+            current_pad_y2 = 0.05 
         else:
             current_pad_x = pad_percent
             current_pad_y1 = pad_percent

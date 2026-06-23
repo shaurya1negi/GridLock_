@@ -71,10 +71,10 @@ def detect_parking_violations(summary_csv_path, polygon_json_path, output_dir ):
         
         points_to_test = {
             "Bottom Center": Point((x1 + x2) / 2.0, y2),
-            "Top Center (Inset)": Point((x1 + x2) / 2.0, y1 + (0.05 * h)),
-            "Left Center (Inset)": Point(x1 + (0.05 * w), (y1 + y2) / 2.0),
-            "Right Center (Inset)": Point(x2 - (0.05 * w), (y1 + y2) / 2.0),
-            "Center Mass (Lower)": Point((x1 + x2) / 2.0, ((y1 + y2) / 2.0) + (0.05 * h))
+            "Top Center (Lower Inset)": Point((x1 + x2) / 2.0, y1 + (0.45 * h)),  # Pushed from 0.05 down to 0.45 (Just below absolute center)
+            "Left Center (Lower Inset)": Point(x1 + (0.05 * w), y2 - (0.25 * h)), # Shifted vertically down to 25% above the tires
+            "Right Center (Lower Inset)": Point(x2 - (0.05 * w), y2 - (0.25 * h)),# Shifted vertically down to 25% above the tires
+            "Center Mass (Deep Lower)": Point((x1 + x2) / 2.0, y2 - (0.15 * h))  # Pushed from center down to 15% above the absolute baseline
         }
         
         for db_zone_id, zone_poly in parking_zones:
@@ -111,6 +111,7 @@ def detect_parking_violations(summary_csv_path, polygon_json_path, output_dir ):
     print(f"SUCCESS! Detected {len(df_violations)} consensus-verified parking incidents.")
     print(f" -> Parking Citations File written to: {output_csv_path}")
     return output_csv_path
+
 
 
 def detect_wrong_side_violations(trajectory_csv_path, zone_json_path, output_dir, angle_tolerance_deg=135.0, violation_ratio_threshold=0.30):
